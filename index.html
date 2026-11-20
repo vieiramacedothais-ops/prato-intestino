@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#2E6A4E">
 <base target="_blank">
 <title>Prato & Intestino</title>
@@ -52,16 +52,10 @@ header.top h1{font-size:26px;line-height:1.05}
 .card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
 .link{border:0;background:none;color:var(--accent);font-weight:600;padding:4px 0;font-size:14px}
 
-/* bichinho */
-.pet{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center}
-.pet svg{width:96px;height:96px}
-.pet .name{font-family:var(--display);font-weight:700;font-size:18px}
-.pet .say{font-size:14px;margin-top:2px}
 .lvl{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .track{flex:1;height:8px;background:var(--surface-2);border-radius:99px;overflow:hidden}
 .track>i{display:block;height:100%;background:var(--accent);border-radius:99px}
 .streak{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;background:var(--accent-soft);color:var(--ink);padding:3px 8px;border-radius:99px;margin-top:6px}
-@media (prefers-reduced-motion: no-preference){.bob{animation:bob 3.2s ease-in-out infinite;transform-origin:60px 110px}@keyframes bob{50%{transform:translateY(-3px) scale(1.01,.99)}}}
 
 /* calorias */
 .kcal{display:grid;grid-template-columns:128px 1fr;gap:14px;align-items:center}
@@ -129,7 +123,7 @@ header.top h1{font-size:26px;line-height:1.05}
 
 /* painel */
 .sheet-bg{position:fixed;inset:0;background:rgba(10,16,12,.45);z-index:40}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--bg);border-radius:20px 20px 0 0;max-height:94%;display:flex;flex-direction:column;
+.sheet{position:fixed;left:0;right:0;bottom:var(--kb,0px);z-index:41;background:var(--bg);border-radius:20px 20px 0 0;max-height:calc(var(--vvh,100vh) * 0.94);display:flex;flex-direction:column;
   padding:0 max(16px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px,env(safe-area-inset-left))}
 .sheet .inner{max-width:560px;width:100%;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1}
 .sheet-head{display:flex;justify-content:space-between;align-items:center;padding:16px 0 10px;gap:8px}
@@ -387,10 +381,9 @@ function applyAI(d, r) {
   if (r.reacao) d.reacao = String(r.reacao).slice(0,140);
 }
 function mealPrompt(draft, transcript, nImgs, text) {
-  const pet = P().petNome || 'Broto';
   return 'Você é uma nutricionista que ajuda uma pessoa a registrar refeições num diário, em português do Brasil.\n'+
     'Responda SOMENTE com um objeto JSON neste formato:\n'+
-    '{"refeicao": uma de '+JSON.stringify(MEALS)+' ou null,\n "resumo": frase curta (até 70 caracteres),\n "itens": [{"nome": "alimento", "quantidade": "porção caseira, ex. 4 colheres de sopa (100 g)", "kcal": número, "proteina": gramas, "carboidratos": gramas, "gorduras": gramas, "fibras": gramas}],\n "nota": número de 1 a 10 para o equilíbrio nutricional da refeição,\n "selos": até 3 conquistas positivas [{"nome": "até 3 palavras, ex. Rico em fibras", "porque": "1 frase explicando"}] (lista vazia se não houver),\n "mensagem": 1-2 frases acolhedoras confirmando o que entendeu; se a porção for muito incerta, faça UMA pergunta curta,\n "reacao": frase curta e divertida de '+pet+', um bichinho-broto fofo, reagindo à refeição, sem julgamento}\n'+
+    '{"refeicao": uma de '+JSON.stringify(MEALS)+' ou null,\n "resumo": frase curta (até 70 caracteres),\n "itens": [{"nome": "alimento", "quantidade": "porção caseira, ex. 4 colheres de sopa (100 g)", "kcal": número, "proteina": gramas, "carboidratos": gramas, "gorduras": gramas, "fibras": gramas}],\n "nota": número de 1 a 10 para o equilíbrio nutricional da refeição,\n "selos": até 3 conquistas positivas [{"nome": "até 3 palavras, ex. Rico em fibras", "porque": "1 frase explicando"}] (lista vazia se não houver),\n "mensagem": 1-2 frases acolhedoras confirmando o que entendeu; se a porção for muito incerta, faça UMA pergunta curta}\n'+
     'Regras: use valores da Tabela TACO/TBCA para alimentos brasileiros quando possível. Estime porções realistas. Valores por item, já multiplicados pela quantidade. '+
     'Se a foto for de um rótulo ou tabela nutricional, use os valores do rótulo para a quantidade consumida (se não souber quantas porções, considere 1). '+
     'Mantenha os itens já registrados a menos que a pessoa peça para mudar. Tom gentil, sem culpa.\n'+
@@ -434,8 +427,6 @@ const COLORS = [{k:'Marrom',c:'#7A4A22'},{k:'Marrom claro',c:'#B07A43'},{k:'Escu
 const DOR = ['Sem dor','Leve','Moderada','Forte'];
 const ACTIVITY = [{k:1.2,t:'Sedentária',d:'Pouco ou nenhum exercício'},{k:1.375,t:'Leve',d:'Exercício 1 a 3 vezes por semana'},{k:1.55,t:'Moderada',d:'Exercício 3 a 5 vezes por semana'},{k:1.725,t:'Intensa',d:'Exercício 6 a 7 vezes por semana'},{k:1.9,t:'Muito intensa',d:'Treino pesado diário ou trabalho físico'}];
 const GOALS = [{k:'perder',t:'Perder peso'},{k:'manter',t:'Manter o peso'},{k:'ganhar',t:'Ganhar massa'}];
-const PET_COLORS = ['#E9B44C','#8CC084','#E58FA6','#7FB3D5','#B39DDB'];
-const ACCESSORIES = [{k:'',t:'Nada',lvl:1},{k:'laco',t:'Laço',lvl:2},{k:'chapeu',t:'Chapéu',lvl:3},{k:'oculos',t:'Óculos',lvl:4},{k:'cachecol',t:'Cachecol',lvl:5},{k:'coroa',t:'Coroa de flores',lvl:6}];
 
 function bristolSvg(n, w=64, hgt=30){
   const f = 'var(--stool)'; let inner = '';
@@ -463,7 +454,7 @@ function dayTotals(key){
   return t;
 }
 
-/* ================= bichinho (Broto) ================= */
+/* ================= sequência de dias registrando ================= */
 function petStats(){
   const meals = state.entries.filter(e=>e.type==='meal');
   const stools = state.entries.length - meals.length;
@@ -477,43 +468,6 @@ function petStats(){
   while (days.has(dayKey(d.getTime()))) { streak++; d.setDate(d.getDate()-1); }
   return {xp, level, into: xp%120, streak};
 }
-function petMood(){
-  const now = new Date(), hr = now.getHours(), today = dayKey(Date.now());
-  const meals = state.entries.filter(e=>e.type==='meal' && dayKey(e.at)===today).sort((a,b)=>b.at-a.at);
-  const name = P().petNome || 'Broto';
-  if (hr>=23 || hr<6) return {m:'sono', say: name+' está dormindo. Bons sonhos!'};
-  if (!meals.length && hr>=10) return {m:'fome', say: 'Estou com fome… me conta o que você comeu hoje?'};
-  if (!meals.length) return {m:'ok', say:'Bom dia! Vamos começar o dia juntos?'};
-  const last = meals[0];
-  if (last.reacao && Date.now()-last.at < 3*36e5) return {m: (last.score||0)>=7?'feliz':'ok', say:last.reacao};
-  if ((last.score||0)>=8) return {m:'feliz', say:'Que prato caprichado! Estou radiante.'};
-  const w = state.water[today]||0;
-  if (w < goals().agua/2 && hr>=14) return {m:'ok', say:'Bora beber uma água? Eu também fico com sede.'};
-  return {m:'feliz', say:'Obrigado por cuidar de nós dois hoje!'};
-}
-function petSvg(color, mood, acc, size=96){
-  const eyes = mood==='sono'
-    ? '<path d="M44 66 q5 4 10 0M66 66 q5 4 10 0" stroke="#1C2620" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
-    : '<circle cx="49" cy="65" r="4.2" fill="#1C2620"/><circle cx="71" cy="65" r="4.2" fill="#1C2620"/><circle cx="50.4" cy="63.6" r="1.4" fill="#fff"/><circle cx="72.4" cy="63.6" r="1.4" fill="#fff"/>';
-  const mouth = mood==='feliz' ? '<path d="M51 76 q9 10 18 0z" fill="#7A2E3A"/>'
-    : mood==='fome' ? '<ellipse cx="60" cy="79" rx="4.5" ry="5.5" fill="#7A2E3A"/>'
-    : mood==='sono' ? '<path d="M56 79 q4 2 8 0" stroke="#7A2E3A" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
-    : '<path d="M52 77 q8 6 16 0" stroke="#7A2E3A" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
-  const accs = {
-    laco:'<path d="M78 40 l12 -6 l-2 12z M78 40 l-4 12 l12 -2z" fill="#D9485F"/><circle cx="80" cy="42" r="3" fill="#B23048"/>',
-    chapeu:'<ellipse cx="60" cy="42" rx="26" ry="5" fill="#2B2B33"/><rect x="46" y="22" width="28" height="20" rx="4" fill="#2B2B33"/><rect x="46" y="35" width="28" height="4" fill="#D9485F"/>',
-    oculos:'<circle cx="49" cy="65" r="8" fill="none" stroke="#1C2620" stroke-width="2.4"/><circle cx="71" cy="65" r="8" fill="none" stroke="#1C2620" stroke-width="2.4"/><path d="M57 65 h6" stroke="#1C2620" stroke-width="2.4"/>',
-    cachecol:'<path d="M30 88 q30 12 60 0 l0 8 q-30 12 -60 0z" fill="#D9485F"/><rect x="70" y="92" width="9" height="16" rx="3" fill="#B23048"/>',
-    coroa:'<g>'+[36,48,60,72,84].map((x,i)=>'<circle cx="'+x+'" cy="'+(44-(i===2?4:i%2?2:0))+'" r="5" fill="'+['#F2A7B8','#F7D66B','#E58FA6','#F7D66B','#F2A7B8'][i]+'"/>').join('')+'</g>'
-  };
-  const sprout = acc==='chapeu' ? '' : '<path d="M60 40 q0 -10 0 -16" stroke="#3E8E5A" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="52" cy="22" rx="9" ry="5" transform="rotate(-25 52 22)" fill="#5DB07A"/><ellipse cx="68" cy="20" rx="9" ry="5" transform="rotate(25 68 20)" fill="#5DB07A"/>';
-  const z = mood==='sono' ? '<text x="88" y="40" font-family="sans-serif" font-size="14" font-weight="700" fill="var(--muted)">z</text><text x="96" y="30" font-family="sans-serif" font-size="10" font-weight="700" fill="var(--muted)">z</text>' : '';
-  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 120 120" aria-hidden="true"><ellipse cx="60" cy="110" rx="30" ry="4" fill="var(--line)"/><g class="bob">'+sprout+
-    '<path d="M60 38 C 86 38, 98 58, 98 76 C 98 96, 82 108, 60 108 C 38 108, 22 96, 22 76 C 22 58, 34 38, 60 38z" fill="'+color+'"/>'+
-    '<ellipse cx="60" cy="88" rx="22" ry="14" fill="#fff" opacity=".35"/><ellipse cx="40" cy="76" rx="6" ry="3.6" fill="#E26A7C" opacity=".45"/><ellipse cx="80" cy="76" rx="6" ry="3.6" fill="#E26A7C" opacity=".45"/>'+
-    eyes+mouth+(accs[acc]||'')+'</g>'+z+'</svg>';
-}
-
 /* ================= carregamento ================= */
 async function boot(){
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
@@ -546,15 +500,8 @@ function render(){
 /* ================= HOJE ================= */
 function renderToday(v){
   const key = dayKey(Date.now()), t = dayTotals(key), g = goals();
-  // bichinho
-  const ps = petStats(), mood = petMood();
-  v.append(h('div',{class:'card pet'},
-    h('button',{style:'border:0;background:none;padding:0','aria-label':'Personalizar bichinho',onclick:openPetCustom,html:petSvg(P().petCor||PET_COLORS[0], mood.m, P().petAcc||'')}),
-    h('div',{style:'min-width:0'},
-      h('div',{class:'name'}, P().petNome||'Broto'),
-      h('div',{class:'say'}, mood.say),
-      h('div',{class:'lvl'}, 'Nível '+ps.level, h('div',{class:'track'},h('i',{style:'width:'+(ps.into/120*100)+'%'})), ps.into+'/120'),
-      ps.streak ? h('div',{class:'streak'}, ps.streak+(ps.streak===1?' dia seguido':' dias seguidos')+' registrando') : null)));
+  const ps = petStats();
+  if (ps.streak) v.append(h('div',{class:'streak',style:'margin:0 0 12px'}, ps.streak+(ps.streak===1?' dia seguido':' dias seguidos')+' registrando'));
   // calorias e macros
   const pct = Math.min(1, t.kcal/g.kcal), R=54, C=2*Math.PI*R;
   const left = Math.round(g.kcal - t.kcal);
@@ -1061,14 +1008,13 @@ function calcTargets(p){
   return {metaKcal:kcal, metaProt:prot, metaCarb:carb, metaGord:gord, metaFibra:Math.round(kcal/1000*14), metaAgua: Math.max(6, Math.round(p.peso*35/250))};
 }
 function openOnboarding(edit){
-  const p = Object.assign({sexo:'f', idade:30, altura:165, peso:65, atividade:1.375, objetivo:'manter', ritmo:0.5, petNome:'Broto', petCor:PET_COLORS[0], petAcc:'', copoMl:250, jejumH:16}, state.profile||{});
+  const p = Object.assign({sexo:'f', idade:30, altura:165, peso:65, atividade:1.375, objetivo:'manter', ritmo:0.5, copoMl:250, jejumH:16}, state.profile||{});
   let step = edit ? 1 : 0;
   const body = h('div',{style:'display:flex;flex-direction:column;gap:14px'});
   const back = h('button',{class:'btn ghost'},'Voltar'); const next = h('button',{class:'btn primary'},'Continuar');
   const steps = [
-    () => [h('div',{style:'display:flex;justify-content:center',html:petSvg(p.petCor,'feliz','',140)}),
-      h('h3',{style:'font-size:22px;text-align:center'},'Oi! Eu sou seu bichinho-broto.'),
-      h('p',{class:'muted',style:'margin:0;text-align:center'},'Eu cresço quando você registra refeições, água e evacuações. Antes, vou te fazer umas perguntas rápidas para calcular suas metas.')],
+    () => [h('h3',{style:'font-size:22px'},'Vamos calcular suas metas'),
+      h('p',{class:'muted',style:'margin:0'},'São umas perguntas rápidas para definir suas metas diárias de calorias, macronutrientes e água. Você pode ajustar tudo depois.')],
     () => { const sx=h('div',{class:'seg'}); const draw=()=>sx.replaceChildren(...[['f','Feminino'],['m','Masculino']].map(([k,l])=>h('button',{class:'pill','aria-pressed':String(p.sexo===k),onclick:()=>{p.sexo=k;draw();}},l))); draw();
       const num = (id, k, lbl, min, max, step='1') => { const i=h('input',{type:'number',inputmode:'decimal',id,step,min,max,value:p[k]}); i.oninput=()=>p[k]=+i.value; return h('label',{class:'f',for:id},lbl,i); };
       return [h('div',{class:'f'},h('span',{},'Sexo biológico',h('span',{class:'hint'},' (usado só na fórmula do metabolismo)')),sx),
@@ -1085,11 +1031,7 @@ function openOnboarding(edit){
         h('div',{class:'grid2'}, num('mt-k','metaKcal','Calorias (kcal)'), num('mt-p','metaProt','Proteínas (g)')),
         h('div',{class:'grid2'}, num('mt-c','metaCarb','Carboidratos (g)'), num('mt-g','metaGord','Gorduras (g)')),
         h('div',{class:'grid2'}, num('mt-f','metaFibra','Fibras (g)'), num('mt-a','metaAgua','Água (copos)')),
-        h('p',{class:'muted small',style:'margin:0'},'Cálculo pela fórmula de Mifflin-St Jeor. São estimativas: um(a) nutricionista pode ajustar para você.')]; },
-    () => { const nm=h('input',{type:'text',id:'pet-nome',value:p.petNome,maxlength:'20'}); nm.oninput=()=>{p.petNome=nm.value||'Broto';};
-      const pv=h('div',{style:'display:flex;justify-content:center'}); const cs=h('div',{class:'seg'});
-      const draw=()=>{ pv.innerHTML=petSvg(p.petCor,'feliz',p.petAcc,120); cs.replaceChildren(...PET_COLORS.map(c=>h('button',{class:'swatch',style:'background:'+c,'aria-label':'Cor','aria-pressed':String(p.petCor===c),onclick:()=>{p.petCor=c;draw();}}))); }; draw();
-      return [pv, h('label',{class:'f',for:'pet-nome'},'Nome do seu bichinho', nm), h('div',{class:'f'},'Cor', cs)]; }
+        h('p',{class:'muted small',style:'margin:0'},'Cálculo pela fórmula de Mifflin-St Jeor. São estimativas: um(a) nutricionista pode ajustar para você.')]; }
   ];
   const s = openSheet(edit ? 'Metas e perfil' : 'Bem-vinda!', body, [back, next]);
   function draw(){ body.replaceChildren(...steps[step]()); back.hidden = step===0 || (edit && step===1); next.textContent = step===steps.length-1 ? 'Concluir' : 'Continuar'; }
@@ -1099,25 +1041,11 @@ function openOnboarding(edit){
     if (step<steps.length-1){ step++; draw(); return; }
     next.disabled = true;
     try { state.profile = await run('saveProfile', p); if (!edit && !state.weights.length) run('saveWeight',{kg:p.peso, at:Date.now(), dataStr:dataStr(Date.now())}).then(r=>{state.weights.push(r);}).catch(()=>{});
-      s.close(); render(); toast(edit?'Metas atualizadas':'Tudo pronto, '+(p.petNome||'Broto')+' está feliz!'); }
+      s.close(); render(); toast(edit?'Metas atualizadas':'Tudo pronto! Suas metas estão salvas.'); }
     catch(e){ toast(errMsg(e)); next.disabled=false; }
   };
   draw();
 }
-function openPetCustom(){
-  const p = Object.assign({}, P()); const lvl = petStats().level;
-  const pv = h('div',{style:'display:flex;justify-content:center'}); const cs=h('div',{class:'seg'}); const ac=h('div',{class:'opts'});
-  const nm=h('input',{type:'text',id:'pc-nome',value:p.petNome||'Broto',maxlength:'20'}); nm.oninput=()=>p.petNome=nm.value||'Broto';
-  const draw=()=>{ pv.innerHTML=petSvg(p.petCor||PET_COLORS[0],'feliz',p.petAcc||'',130);
-    cs.replaceChildren(...PET_COLORS.map(c=>h('button',{class:'swatch',style:'background:'+c,'aria-label':'Cor','aria-pressed':String((p.petCor||PET_COLORS[0])===c),onclick:()=>{p.petCor=c;draw();}})));
-    ac.replaceChildren(...ACCESSORIES.map(a=>h('button',{class:'opt','aria-pressed':String((p.petAcc||'')===a.k),disabled:a.lvl>lvl?'':null,style:a.lvl>lvl?'opacity:.5':'',onclick:()=>{ if (a.lvl>lvl) return; p.petAcc=a.k; draw(); }},
-      h('b',{},a.t), h('span',{}, a.lvl>lvl ? 'Libera no nível '+a.lvl : 'Disponível')))); };
-  draw();
-  const save = h('button',{class:'btn primary',onclick:async()=>{ save.disabled=true; try { state.profile = await run('saveProfile', Object.assign({}, state.profile||{}, p)); s.close(); render(); } catch(e){ toast(errMsg(e)); save.disabled=false; } }},'Salvar');
-  const s = openSheet('Seu bichinho', h('div',{style:'display:flex;flex-direction:column;gap:14px'}, pv, h('p',{class:'muted small',style:'margin:0;text-align:center'},'Nível '+lvl+' · ganhe pontos registrando refeições, água, peso, evacuações e jejuns.'),
-    h('label',{class:'f',for:'pc-nome'},'Nome', nm), h('div',{class:'f'},'Cor', cs), h('div',{class:'f'},'Acessório', ac)), [h('button',{class:'btn ghost',onclick:()=>s.close()},'Cancelar'), save]);
-}
-
 /* ================= configurações ================= */
 function openSettings(){
   const p = Object.assign({copoMl:250, jejumH:16, avisoJejum:true}, P());
@@ -1192,6 +1120,18 @@ function openConnect(firstTime){
     h('p',{class:'muted small',style:'margin:0'},'Depois de conectado, o app funciona sem internet: os registros ficam no celular e vão para o Drive quando a conexão voltar.')),
     [cfg ? h('button',{class:'btn ghost',onclick:()=>s.close()},'Cancelar') : null, go].filter(Boolean));
 }
+
+/* teclado do celular: mantém o painel e o campo digitado acima do teclado */
+(function(){
+  const vv = window.visualViewport; const root = document.documentElement;
+  const fit = () => { if (!vv) return; const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    root.style.setProperty('--kb', kb + 'px'); root.style.setProperty('--vvh', vv.height + 'px'); };
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); fit(); }
+  document.addEventListener('focusin', ev => {
+    const el = ev.target; if (!el || !el.matches || !el.matches('input, textarea')) return;
+    setTimeout(() => { fit(); try { el.scrollIntoView({block:'center', behavior:'smooth'}); } catch(e){} }, 350);
+  });
+})();
 
 render(); boot();
 if ('serviceWorker' in navigator) {
