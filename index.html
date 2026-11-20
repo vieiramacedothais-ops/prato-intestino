@@ -1042,9 +1042,11 @@ function renderPlan(v){
   const pdfIn = h('input',{type:'file',accept:'application/pdf',class:'overlay-file','aria-label':'Escolher PDF da dieta'});
   const pdfLab = h('label',{class:'btn ghost block',style:'position:relative;overflow:hidden'}, 'Importar dieta em PDF', pdfIn);
   pdfIn.onchange = () => { const f = pdfIn.files[0]; pdfIn.value=''; if (f) importPdf(f); };
+  const errBox = h('p',{class:'small',role:'alert',style:'margin:10px 0 0;color:var(--warn)',hidden:true});
+  const showErr = msg => { errBox.textContent = msg; errBox.hidden = false; toast(msg); };
   v.append(h('div',{class:'card'}, h('h3',{},'Plano alimentar'),
     h('p',{class:'muted small',style:'margin:4px 0 10px'},'Peça para a IA montar 7 dias pensados para as suas metas ('+nf(goals().kcal)+' kcal) ou importe o PDF da dieta da sua nutricionista. O plano também vai para a aba "Plano alimentar" da sua planilha.'),
-    h('label',{class:'f',for:'plan-prefs'},'Preferências e restrições (para a IA)', prefs), h('div',{style:'height:10px'}), btn, h('div',{style:'height:8px'}), pdfLab));
+    h('label',{class:'f',for:'plan-prefs'},'Preferências e restrições (para a IA)', prefs), h('div',{style:'height:10px'}), btn, h('div',{style:'height:8px'}), pdfLab, errBox));
   if (plan){
     v.append(h('p',{class:'muted small',style:'margin:0 0 10px'}, (plan.fonte==='pdf' ? 'Dieta importada do PDF'+(plan.nome?' "'+plan.nome+'"':'') : 'Plano gerado pela IA')+' em '+new Date(plan.geradoEm||Date.now()).toLocaleDateString('pt-BR')+'.'));
     if (plan.obs) v.append(h('div',{class:'card'}, h('h3',{},'Orientações da dieta'), h('p',{class:'small',style:'margin:6px 0 0;white-space:pre-line'}, plan.obs)));
@@ -1061,17 +1063,38 @@ function renderPlan(v){
   }
   async function gen(){
     if (!state.info.hasKey){ openSettings(); return; }
-    btn.disabled = true; btn.textContent = 'Montando o plano… (pode levar 1 minuto)';
+    errBox.hidden = true;
     const p = P(), g = goals();
     if (state.profile){ state.profile.preferencias = prefs.value.trim(); run('saveProfile', state.profile).catch(()=>{}); }
-    const prompt = 'Você é uma nutricionista brasileira. Monte um plano alimentar de 7 dias (Segunda a Domingo) com 4 refeições por dia (Café da manhã, Almoço, Lanche da tarde, Jantar), com comida brasileira do dia a dia, acessível e variada.\n'+
-      'Metas diárias aproximadas: '+g.kcal+' kcal, proteína '+g.p+' g, carboidratos '+g.c+' g, gorduras '+g.g+' g, fibras '+g.f+' g. Objetivo: '+(p.objetivo||'manter')+'.\n'+
-      'Preferências e restrições: '+(prefs.value.trim()||'nenhuma informada')+'.\n'+
-      'Responda SOMENTE com JSON: {"dias":[{"dia":"Segunda","refeicoes":[{"refeicao":"Café da manhã","prato":"nome","porcao":"medidas caseiras","preparo":"até 2 frases","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]}\n'+
-      'Os ingredientes são crus, para UMA porção, em quantidade de compra. Reaproveite ingredientes entre os dias para facilitar as compras.';
-    try { const r = await run('askGemini', prompt, []); if (!r || !Array.isArray(r.dias)) throw new Error('A IA não montou o plano direito. Tente de novo.');
-      state.plan = normPlan(r, 'ia'); render(); toast('Plano pronto'); savePlanNow(); }
-    catch(e){ toast(errMsg(e)); btn.disabled=false; btn.textContent='Tentar de novo'; }
+    // Monta em partes (2 dias por vez): um pedido só com a semana inteira demora demais e o Google corta.
+    const LOTES = [['Segunda','Terça'],['Quarta','Quinta'],['Sexta','Sábado'],['Domingo']];
+    const dias = [];
+    btn.disabled = true; pdfIn.disabled = true;
+    try {
+      for (let i=0; i<LOTES.length; i++){
+        btn.textContent = 'Montando o plano… ('+dias.length+' de 7 dias)';
+        const jaUsados = dias.flatMap(d=>(d.refeicoes||[]).map(m=>m.prato));
+        const prompt = 'Você é uma nutricionista brasileira. Monte o plano alimentar de '+LOTES[i].join(' e ')+' com 4 refeições por dia (Café da manhã, Almoço, Lanche da tarde, Jantar), com comida brasileira do dia a dia, acessível e variada.\n'+
+          'Metas diárias aproximadas: '+g.kcal+' kcal, proteína '+g.p+' g, carboidratos '+g.c+' g, gorduras '+g.g+' g, fibras '+g.f+' g. Objetivo: '+(p.objetivo||'manter')+'.\n'+
+          'Preferências e restrições: '+(prefs.value.trim()||'nenhuma informada')+'.\n'+
+          (jaUsados.length ? 'Pratos já usados em outros dias (varie, mas pode repetir alguns ingredientes para facilitar as compras): '+JSON.stringify(jaUsados)+'\n' : '')+
+          'Responda SOMENTE com JSON: {"dias":[{"dia":"'+LOTES[i][0]+'","refeicoes":[{"refeicao":"Café da manhã","prato":"nome","porcao":"medidas caseiras","preparo":"até 2 frases","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]}\n'+
+          'Os ingredientes são crus, para UMA porção, em quantidade de compra (no máximo 8 por prato).';
+        let r = null, err = null;
+        for (let t=0; t<2 && !r; t++){ // tenta de novo uma vez se falhar
+          try { r = await run('askGemini', prompt, []); if (!r || !Array.isArray(r.dias) || !r.dias.length) { r = null; throw new Error('A IA não montou os dias direito.'); } }
+          catch(e){ err = e; if (/chave|limite|internet|conexão com o Google|Conecte/i.test(errMsg(e))) break; }
+        }
+        if (!r) throw err || new Error('A IA não montou o plano direito.');
+        r.dias.forEach((d,k)=>{ if (!d.dia || !LOTES[i].includes(d.dia)) d.dia = LOTES[i][k] || d.dia; });
+        dias.push(...r.dias.slice(0, LOTES[i].length));
+      }
+      if (state.plan && state.plan.dias && !confirmReplace()) { render(); return; }
+      state.plan = normPlan({dias}, 'ia'); render(); toast('Plano pronto'); savePlanNow();
+    } catch(e){
+      showErr('Não consegui montar o plano'+(dias.length ? ' (parou em '+dias.length+' de 7 dias)' : '')+': '+errMsg(e));
+      btn.disabled=false; pdfIn.disabled=false; btn.textContent='Tentar de novo';
+    }
   }
   async function importPdf(file){
     if (!state.info.hasKey){ openSettings(); return; }
@@ -1089,7 +1112,7 @@ function renderPlan(v){
       const r = await run('askGemini', prompt, [{mime:'application/pdf', data:b64}]);
       if (!r || !Array.isArray(r.dias) || !r.dias.length) throw new Error('Não consegui entender essa dieta. Confira se o PDF tem texto (não só foto) e tente de novo.');
       state.plan = normPlan(r, 'pdf', String(r.nome||file.name.replace(/\.pdf$/i,'')).slice(0,60)); planTab='cardapio'; render(); toast('Dieta importada'); savePlanNow();
-    } catch(e){ toast(errMsg(e)); render(); }
+    } catch(e){ pdfLab.firstChild.textContent='Importar dieta em PDF'; pdfLab.style.opacity=''; pdfIn.disabled=false; btn.disabled=false; showErr('Não consegui importar o PDF: '+errMsg(e)); }
   }
 }
 function confirmReplace(){ return window.confirm('Isso vai substituir o plano atual (e a seleção da lista de compras). Continuar?'); }
