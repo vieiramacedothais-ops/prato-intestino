@@ -92,6 +92,10 @@ header.top h1{font-size:26px;line-height:1.05}
 .entry .kind em{font-style:normal;color:var(--ink);text-transform:none;letter-spacing:0;font-variant-numeric:tabular-nums}
 .entry.meal .kind{color:var(--accent)} .entry.stool .kind{color:var(--stool)} .entry.workout .kind{color:var(--work)}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ingrow{display:grid;grid-template-columns:1fr 1fr 72px 28px;gap:6px;align-items:center;border-top:1px solid var(--line);padding-top:8px}
+.ingrow input,.ingrow select{padding:8px;font-size:14px;min-width:0}
+.ingrow>:nth-child(1){grid-column:1/3}.ingrow>:nth-child(2){grid-column:3}.ingrow>:nth-child(3){grid-column:1;grid-row:2}.ingrow>:nth-child(4){grid-column:2/5;grid-row:2}.ingrow>:nth-child(5){grid-column:4;grid-row:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .exlist{display:flex;flex-direction:column;gap:10px}
 .exitem{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .exitem .x{width:30px;height:30px;font-size:16px}
@@ -354,7 +358,10 @@ async function sync() {
     (r.errors || []).forEach(er => toast('Não consegui gravar um registro no Drive: ' + er.error));
     if (!outbox.length) {
       const reacoes = {}; state.entries.forEach(e => { if (e.reacao) reacoes[e.id] = e.reacao; });
+      const localPlan = state.plan;
       Object.assign(state, r.all, { loaded: true });
+      // se o plano do celular é mais novo que o da planilha (ex.: o salvamento falhou), fica o do celular
+      if (localPlan && localPlan.rev && (!state.plan || !(state.plan.rev >= localPlan.rev))) state.plan = localPlan;
       state.entries.forEach(e => { if (reacoes[e.id]) e.reacao = reacoes[e.id]; });
       state.entries.sort((a, b) => b.at - a.at);
     }
@@ -1300,9 +1307,9 @@ function normPlan(r, fonte, nome){
     refeicao:String(m.refeicao||''), prato:String(m.prato), porcao:String(m.porcao||''), preparo:String(m.preparo||''),
     kcal:+m.kcal||0, proteina:+m.proteina||0, carboidratos:+m.carboidratos||0, gorduras:+m.gorduras||0, fibras:+m.fibras||0,
     ingredientes: m.ingredientes ? normIng(m.ingredientes) : null, passos: Array.isArray(m.passos) ? m.passos.map(String) : null }))}));
-  return {fonte, nome:nome||'', geradoEm:Date.now(), dias, sel:[], ok:[], obs:String(r.observacoes||'')};
+  return ensureIds({fonte, nome:nome||'', geradoEm:Date.now(), dias, sel:[], ok:[], obs:String(r.observacoes||'')});
 }
-const planMeals = plan => { const out=[]; (plan.dias||[]).forEach((d,di)=>(d.refeicoes||[]).forEach((m,mi)=>out.push({d, m, di, mi, key:di+'|'+mi}))); return out; };
+const planMeals = plan => { const out=[]; (plan.dias||[]).forEach((d,di)=>(d.refeicoes||[]).forEach((m,mi)=>out.push({d, m, di, mi, key:m.id||(di+'|'+mi)}))); return out; };
 const fmtQty = (q, un) => {
   if (q==null) return un && un!=='a gosto' ? un : 'a gosto';
   if (un==='g' && q>=1000) return nf(q/1000,2)+' kg';
@@ -1330,6 +1337,7 @@ function shoppingList(plan){
 }
 function savePlanNow(){
   const plan = state.plan; if (!plan) return;
+  plan.rev = Date.now();
   if (plan.dias && plan.sel){ const {items} = shoppingList(plan); plan.listaSemana = items.map(i=>i.nome+' — '+i.txt); }
   persistSoon(); run('savePlan', plan).catch(()=>toast('Não consegui salvar o plano na planilha.'));
 }
@@ -1348,6 +1356,107 @@ async function fillIngredients(list, onStep){
   }
   savePlanNow();
 }
+/* ---------- editar o plano à mão ---------- */
+const newMealId = () => 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// dá um id fixo para cada refeição (a seleção da lista de compras usa esse id, então não se perde ao apagar/mover)
+function ensureIds(plan){
+  if (!plan || !plan.dias) return plan;
+  const old = new Set(plan.sel||[]), sel = [];
+  plan.dias.forEach((d,di)=>(d.refeicoes||[]).forEach((m,mi)=>{
+    if (!m.id) { m.id = newMealId(); if (old.has(di+'|'+mi)) sel.push(m.id); }
+    else if (old.has(m.id)) sel.push(m.id);
+  }));
+  plan.sel = sel;
+  return plan;
+}
+const DEFAULT_MEALS = ['Café da manhã','Lanche da manhã','Almoço','Lanche da tarde','Jantar','Ceia'];
+function blankPlan(){
+  return {fonte:'manual', nome:'', geradoEm:Date.now(), sel:[], ok:[], obs:'',
+    dias:['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'].map(dia=>({dia, refeicoes:[]}))};
+}
+function openMealEdit(di, mi){
+  const plan = state.plan, day = plan.dias[di];
+  const isNew = mi==null;
+  const m = isNew ? {id:newMealId(), refeicao:DEFAULT_MEALS[Math.min((day.refeicoes||[]).length, DEFAULT_MEALS.length-1)], prato:'', porcao:'', preparo:'', kcal:0, proteina:0, carboidratos:0, gorduras:0, fibras:0, ingredientes:[], passos:null}
+    : JSON.parse(JSON.stringify(day.refeicoes[mi]));
+  m.ingredientes = m.ingredientes || [];
+  const inp = (id, v, attrs={}) => { const i = h('input',Object.assign({id, type:'text'},attrs)); i.value = v==null ? '' : v; return i; };
+  const refeicao = inp('pe-ref', m.refeicao, {list:'pe-reflist'}), prato = inp('pe-prato', m.prato, {placeholder:'Ex.: Arroz, feijão e frango grelhado'});
+  const porcao = inp('pe-porcao', m.porcao, {placeholder:'Ex.: 4 col. de arroz, 1 concha de feijão'});
+  const preparo = h('textarea',{id:'pe-prep',rows:'2',placeholder:'Resumo do preparo (opcional)'}); preparo.value = m.preparo||'';
+  const passos = h('textarea',{id:'pe-passos',rows:'4',placeholder:'Um passo por linha (opcional)'}); passos.value = (m.passos||[]).join('\n');
+  const nums = [['kcal','kcal'],['proteina','Proteína (g)'],['carboidratos','Carbo (g)'],['gorduras','Gordura (g)'],['fibras','Fibras (g)']].map(([k,l])=>{ const i = inp('pe-'+k, m[k]||'', {type:'number',inputmode:'decimal',min:'0'}); return {k, i, el:h('label',{class:'f small',for:'pe-'+k}, l, i)}; });
+  const dayPick = h('select',{id:'pe-dia'}, plan.dias.map((d,k)=>h('option',{value:String(k)}, d.dia))); dayPick.value = String(di);
+  const ingBox = h('div',{style:'display:flex;flex-direction:column;gap:8px'});
+  function drawIng(){
+    ingBox.replaceChildren(...m.ingredientes.map((g,gi)=>{
+      const n = h('input',{type:'text','aria-label':'Ingrediente',placeholder:'Ingrediente'}); n.value = g.nome||''; n.oninput = () => g.nome = n.value;
+      const q = h('input',{type:'number',inputmode:'decimal',min:'0','aria-label':'Quantidade',placeholder:'qtd'}); if (g.qtd!=null) q.value = g.qtd; q.oninput = () => g.qtd = q.value==='' ? null : +q.value;
+      const u = h('select',{'aria-label':'Unidade'}, ['g','ml','unidade','fatia','colher de sopa','colher de chá','xícara','a gosto'].map(x=>h('option',{value:x},x))); u.value = g.un || 'g'; u.onchange = () => g.un = u.value;
+      const c = h('select',{'aria-label':'Seção do mercado'}, CATS.map(x=>h('option',{value:x},x))); c.value = g.cat || 'Outros'; c.onchange = () => g.cat = c.value;
+      return h('div',{class:'ingrow'}, n, q, u, c, h('button',{class:'setdel','aria-label':'Tirar ingrediente',onclick:()=>{ m.ingredientes.splice(gi,1); drawIng(); }},'×'));
+    }), h('button',{class:'link',style:'align-self:flex-start',onclick:()=>{ m.ingredientes.push({nome:'', qtd:null, un:'g', cat:'Outros'}); drawIng(); }},'+ ingrediente'));
+  }
+  const iaBtn = h('button',{class:'btn ghost block',onclick:async()=>{
+    if (!state.info.hasKey){ s.close(); openSettings(); return; }
+    if (!prato.value.trim()) { toast('Escreva o prato primeiro'); return; }
+    iaBtn.disabled = true; iaBtn.textContent = 'Calculando…';
+    try {
+      const r = await run('askGemini', 'Você é uma nutricionista brasileira. Para o prato abaixo, calcule calorias e macros da porção indicada (Tabela TACO) e liste os ingredientes crus para comprar.\n'+
+        'Responda SOMENTE com JSON: {"kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}\n'+
+        'Prato: '+JSON.stringify({refeicao:refeicao.value, prato:prato.value, porcao:porcao.value}), []);
+      nums.forEach(x=>{ if (r && r[x.k]!=null) x.i.value = Math.round(+r[x.k]*10)/10; });
+      if (r && Array.isArray(r.ingredientes) && r.ingredientes.length) { m.ingredientes = normIng(r.ingredientes); drawIng(); }
+      toast('Valores preenchidos. Confira e salve.');
+    } catch(e){ toast(errMsg(e)); }
+    iaBtn.disabled = false; iaBtn.textContent = 'Recalcular calorias e ingredientes com a IA';
+  }},'Recalcular calorias e ingredientes com a IA');
+  const save = h('button',{class:'btn primary',onclick:()=>{
+    if (!prato.value.trim()) { toast('Escreva o que vai comer'); return; }
+    const out = Object.assign(m, {refeicao:refeicao.value.trim()||'Refeição', prato:prato.value.trim(), porcao:porcao.value.trim(), preparo:preparo.value.trim(),
+      passos: passos.value.split('\n').map(x=>x.trim()).filter(Boolean)});
+    if (!out.passos.length) out.passos = null;
+    nums.forEach(x=>out[x.k] = +x.i.value||0);
+    out.ingredientes = m.ingredientes.filter(g=>g.nome && g.nome.trim()).map(g=>({nome:g.nome.trim(), qtd:g.qtd, un:g.un||'g', cat:g.cat||'Outros'}));
+    const to = +dayPick.value;
+    if (!isNew) day.refeicoes.splice(mi,1);
+    const target = plan.dias[to].refeicoes;
+    if (!isNew && to===di) target.splice(mi,0,out); else target.push(out);
+    plan.editadoEm = Date.now(); savePlanNow(); s.close(); render(); toast(isNew ? 'Refeição adicionada' : 'Refeição atualizada');
+  }}, 'Salvar');
+  const del = isNew ? h('button',{class:'btn ghost',onclick:()=>s.close()},'Cancelar') : h('button',{class:'btn danger',onclick:()=>{
+    if (!window.confirm('Apagar esta refeição do plano?')) return;
+    day.refeicoes.splice(mi,1); plan.sel = (plan.sel||[]).filter(k=>k!==m.id); savePlanNow(); s.close(); render(); toast('Refeição apagada');
+  }},'Apagar');
+  const body = h('div',{style:'display:flex;flex-direction:column;gap:14px'},
+    h('datalist',{id:'pe-reflist'}, DEFAULT_MEALS.map(x=>h('option',{value:x}))),
+    h('div',{class:'grid2'}, h('label',{class:'f',for:'pe-ref'},'Refeição', refeicao), h('label',{class:'f',for:'pe-dia'},'Dia', dayPick)),
+    h('label',{class:'f',for:'pe-prato'},'O que comer', prato),
+    h('label',{class:'f',for:'pe-porcao'},'Porção', porcao),
+    iaBtn,
+    h('div',{class:'grid3'}, nums.slice(0,3).map(x=>x.el)), h('div',{class:'grid3'}, nums.slice(3).map(x=>x.el)),
+    h('div',{class:'f'},'Ingredientes (para a lista de compras)', ingBox),
+    h('label',{class:'f',for:'pe-prep'},'Preparo resumido', preparo),
+    h('label',{class:'f',for:'pe-passos'},'Modo de preparo (passo a passo)', passos));
+  drawIng();
+  const s = openSheet(isNew ? 'Nova refeição · '+day.dia : 'Editar refeição', body, [del, save]);
+}
+function editDay(di){
+  const plan = state.plan, d = plan.dias[di];
+  const nome = window.prompt('Nome do dia (ex.: Segunda, Dia de treino).\nPara APAGAR o dia, deixe em branco.', d.dia);
+  if (nome===null) return;
+  if (!nome.trim()) {
+    if (!window.confirm('Apagar "'+d.dia+'" e todas as refeições dele?')) return;
+    const ids = new Set((d.refeicoes||[]).map(m=>m.id)); plan.sel = (plan.sel||[]).filter(k=>!ids.has(k));
+    plan.dias.splice(di,1);
+  } else d.dia = nome.trim().slice(0,30);
+  savePlanNow(); render();
+}
+function addDay(){
+  const nome = window.prompt('Nome do novo dia (ex.: Domingo, Dia livre):'); if (!nome || !nome.trim()) return;
+  state.plan.dias.push({dia:nome.trim().slice(0,30), refeicoes:[]}); savePlanNow(); render();
+}
+
 let planTab = 'cardapio';
 function renderPlan(v){
   const plan = state.plan && state.plan.dias ? state.plan : null;
@@ -1368,20 +1477,25 @@ function renderPlan(v){
   const showErr = msg => { errBox.textContent = msg; errBox.hidden = false; toast(msg); };
   v.append(h('div',{class:'card'}, h('h3',{},'Plano alimentar'),
     h('p',{class:'muted small',style:'margin:4px 0 10px'},'Peça para a IA montar 7 dias pensados para as suas metas ('+nf(goals().kcal)+' kcal) ou importe o PDF da dieta da sua nutricionista. O plano também vai para a aba "Plano alimentar" da sua planilha.'),
-    h('label',{class:'f',for:'plan-prefs'},'Preferências e restrições (para a IA)', prefs), h('div',{style:'height:10px'}), btn, h('div',{style:'height:8px'}), pdfLab, errBox));
+    h('label',{class:'f',for:'plan-prefs'},'Preferências e restrições (para a IA)', prefs), h('div',{style:'height:10px'}), btn, h('div',{style:'height:8px'}), pdfLab, errBox,
+    plan ? null : h('button',{class:'link',style:'margin-top:10px',onclick:()=>{ state.plan = blankPlan(); savePlanNow(); render(); }},'Ou montar o plano do zero, à mão')));
   if (plan){
-    v.append(h('p',{class:'muted small',style:'margin:0 0 10px'}, (plan.fonte==='pdf' ? 'Dieta importada do PDF'+(plan.nome?' "'+plan.nome+'"':'') : 'Plano gerado pela IA')+' em '+new Date(plan.geradoEm||Date.now()).toLocaleDateString('pt-BR')+'.'));
+    v.append(h('p',{class:'muted small',style:'margin:0 0 10px'}, (plan.fonte==='pdf' ? 'Dieta importada do PDF'+(plan.nome?' "'+plan.nome+'"':'') : plan.fonte==='manual' ? 'Plano montado por você' : 'Plano gerado pela IA')+' em '+new Date(plan.geradoEm||Date.now()).toLocaleDateString('pt-BR')+(plan.editadoEm ? ' · editado em '+new Date(plan.editadoEm).toLocaleDateString('pt-BR') : '')+'. Toque em "Editar" para mudar qualquer refeição.'));
     if (plan.obs) v.append(h('div',{class:'card'}, h('h3',{},'Orientações da dieta'), h('p',{class:'small',style:'margin:6px 0 0;white-space:pre-line'}, plan.obs)));
-    plan.dias.forEach(d=>{
+    ensureIds(plan);
+    plan.dias.forEach((d,di)=>{
       const tot = (d.refeicoes||[]).reduce((s,m)=>s+(+m.kcal||0),0);
-      v.append(h('div',{class:'card'}, h('div',{class:'card-head'}, h('h3',{},d.dia), tot ? h('span',{class:'muted small'},'≈ '+nf(tot)+' kcal') : null),
-        (d.refeicoes||[]).map(m=>h('div',{class:'pmeal'}, h('span',{class:'r'}, m.refeicao), h('b',{}, m.prato),
+      v.append(h('div',{class:'card'}, h('div',{class:'card-head'}, h('h3',{},d.dia), h('div',{style:'display:flex;gap:12px;align-items:center'}, tot ? h('span',{class:'muted small'},'≈ '+nf(tot)+' kcal') : null, h('button',{class:'link',onclick:()=>editDay(di)},'Editar dia'))),
+        (d.refeicoes||[]).map((m,mi)=>h('div',{class:'pmeal'}, h('span',{class:'r'}, m.refeicao), h('b',{}, m.prato),
           h('span',{class:'small muted'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal · P '+nf(m.proteina)+'g · C '+nf(m.carboidratos)+'g · G '+nf(m.gorduras)+'g' : ''].filter(Boolean).join(' · ')),
           m.preparo ? h('span',{class:'small'}, m.preparo) : null,
           h('div',{style:'display:flex;gap:14px;flex-wrap:wrap'},
+            h('button',{class:'link',onclick:()=>openMealEdit(di,mi)},'Editar'),
             h('button',{class:'link',onclick:()=>openRecipe(m)},'Ver receita'),
-            h('button',{class:'link',onclick:()=>openMeal(null,{meal:m.refeicao, item:{nome:m.prato, quantidade:m.porcao, kcal:m.kcal, proteina:m.proteina, carboidratos:m.carboidratos, gorduras:m.gorduras, fibras:m.fibras}})},'Comi isso: registrar'))))));
+            h('button',{class:'link',onclick:()=>openMeal(null,{meal:m.refeicao, item:{nome:m.prato, quantidade:m.porcao, kcal:m.kcal, proteina:m.proteina, carboidratos:m.carboidratos, gorduras:m.gorduras, fibras:m.fibras}})},'Comi isso: registrar')))),
+        h('button',{class:'btn ghost block',style:'margin-top:10px',onclick:()=>openMealEdit(di,null)},'+ Adicionar refeição')));
     });
+    v.append(h('button',{class:'btn ghost block',onclick:addDay},'+ Adicionar dia'));
   }
   async function gen(){
     if (!state.info.hasKey){ openSettings(); return; }
@@ -1420,21 +1534,53 @@ function renderPlan(v){
   }
   async function importPdf(file){
     if (!state.info.hasKey){ openSettings(); return; }
-    if (file.size > 15*1024*1024){ toast('Esse PDF é grande demais (máximo 15 MB).'); return; }
+    if (file.size > 40*1024*1024){ toast('Esse PDF passa de 40 MB. Tente diminuir o arquivo (ex.: site ilovepdf, "Comprimir PDF").'); return; }
     if (state.plan && state.plan.dias && !confirmReplace()) return;
-    pdfLab.firstChild.textContent = 'Lendo o PDF… (pode levar 1 minuto)'; pdfLab.style.opacity='.6'; pdfIn.disabled = true; btn.disabled = true;
+    const step = t => { pdfLab.firstChild.textContent = t; };
+    pdfLab.style.opacity='.6'; pdfIn.disabled = true; btn.disabled = true; errBox.hidden = true;
     try {
+      step('Abrindo o PDF…');
       const b64 = await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(String(fr.result).split(',')[1]); fr.onerror=()=>rej(new Error('Não consegui abrir o PDF.')); fr.readAsDataURL(file); });
-      const prompt = 'O PDF anexado é uma dieta (plano alimentar) feita por uma nutricionista. Transcreva-a fielmente para o JSON abaixo, em português do Brasil.\n'+
-        'Responda SOMENTE com JSON: {"nome":"título curto da dieta","observacoes":"orientações gerais da nutricionista (água, horários, o que evitar), ou vazio","dias":[{"dia":"rótulo","refeicoes":[{"refeicao":"ex. Café da manhã","prato":"o que comer, resumido","porcao":"quantidades como estão no PDF","preparo":"modo de preparo se o PDF trouxer, senão vazio","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]}\n'+
+      // envia o PDF ao Google uma vez só (aguenta arquivos grandes e é reaproveitado nas próximas etapas)
+      step('Enviando o PDF para a IA…');
+      let doc;
+      try { doc = await api('uploadFile', {data:b64, mime:'application/pdf', name:file.name}, 240000); }
+      catch(e){ if (file.size > 14*1024*1024) throw e; doc = {mime:'application/pdf', data:b64}; } // PDF pequeno: manda junto no pedido
+      step('Lendo o cardápio… (pode levar 1 a 2 minutos)');
+      const prompt = 'O PDF anexado é uma dieta (plano alimentar) feita por uma nutricionista. Transcreva o CARDÁPIO fielmente para o JSON abaixo, em português do Brasil.\n'+
+        'Responda SOMENTE com JSON: {"nome":"título curto da dieta","observacoes":"orientações gerais da nutricionista (água, horários, o que evitar, substituições), ou vazio","dias":[{"dia":"rótulo","refeicoes":[{"refeicao":"ex. Café da manhã","prato":"o que comer, resumido","porcao":"quantidades como estão no PDF","preparo":"resumo do preparo em até 2 frases, ou vazio","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]'+
+        ',"receitas_no_pdf":["nome de cada receita que o PDF traz com modo de preparo completo, como está escrito no PDF"]}\n'+
         'Regras: não invente alimentos que não estão no PDF. Se a dieta for por dia da semana, use um "dia" por dia. Se for um cardápio único para todos os dias, use um só "dia" chamado "Todos os dias". '+
         'Se uma refeição tiver opções de substituição (Opção 1, Opção 2…), crie uma entrada separada para cada opção, com "prato" começando por "Opção 1: ", "Opção 2: " etc. '+
         'Os ingredientes são os alimentos da refeição convertidos para quantidade de compra (ex. "2 fatias de pão integral" → pão integral, 2, fatia). '+
-        'Use calorias e macros do PDF se houver; se não houver, estime pela Tabela TACO.';
-      const r = await run('askGemini', prompt, [{mime:'application/pdf', data:b64}]);
+        'Use calorias e macros do PDF se houver; se não houver, estime pela Tabela TACO. NÃO copie aqui o passo a passo das receitas, só liste os nomes em "receitas_no_pdf".';
+      const r = await run('askGemini', prompt, [doc]);
       if (!r || !Array.isArray(r.dias) || !r.dias.length) throw new Error('Não consegui entender essa dieta. Confira se o PDF tem texto (não só foto) e tente de novo.');
-      state.plan = normPlan(r, 'pdf', String(r.nome||file.name.replace(/\.pdf$/i,'')).slice(0,60)); planTab='cardapio'; render(); toast('Dieta importada'); savePlanNow();
-    } catch(e){ pdfLab.firstChild.textContent='Importar dieta em PDF'; pdfLab.style.opacity=''; pdfIn.disabled=false; btn.disabled=false; showErr('Não consegui importar o PDF: '+errMsg(e)); }
+      const plan = normPlan(r, 'pdf', String(r.nome||file.name.replace(/\.pdf$/i,'')).slice(0,60));
+      plan.extras = [];
+      // receitas completas: copiadas do PDF em lotes pequenos, para caber em cada resposta
+      const nomes = (Array.isArray(r.receitas_no_pdf) ? r.receitas_no_pdf : []).map(String).filter(Boolean).filter((x,i,a)=>a.findIndex(y=>normName(y)===normName(x))===i);
+      let falhou = 0;
+      for (let i=0; i<nomes.length; i+=4){
+        const lote = nomes.slice(i,i+4);
+        step('Copiando as receitas do PDF… ('+Math.min(i+4,nomes.length)+' de '+nomes.length+')');
+        try {
+          const rr = await run('askGemini', 'O PDF anexado é uma dieta com receitas. Copie FIELMENTE do PDF a receita completa de cada prato desta lista: '+JSON.stringify(lote)+'.\n'+
+            'Responda SOMENTE com JSON: {"receitas":[{"prato":"nome como no PDF","rendimento":"como no PDF ou vazio","tempo":"como no PDF ou vazio",'+ING_JSON+',"passos":["cada passo do modo de preparo, como no PDF"]}]}\n'+
+            'Não invente nada que não esteja no PDF. Se uma receita da lista não estiver no PDF, deixe-a de fora.', [doc]);
+          (rr && Array.isArray(rr.receitas) ? rr.receitas : []).forEach(rc=>{
+            if (!rc || !rc.prato) return;
+            const n = normName(rc.prato), passos = (Array.isArray(rc.passos) ? rc.passos : []).map(String).filter(Boolean);
+            const ing = normIng(rc.ingredientes);
+            const alvo = planMeals(plan).filter(x=>{ const p = normName(x.m.prato); return p===n || p.includes(n) || (n.length>5 && n.includes(p)); });
+            alvo.forEach(x=>{ x.m.passos = passos; x.m.tempo = String(rc.tempo||''); x.m.rendimento = String(rc.rendimento||''); x.m.receitaIng = ing; if (!x.m.ingredientes || !x.m.ingredientes.length) x.m.ingredientes = ing; });
+            if (!alvo.length) plan.extras.push({id:newMealId(), refeicao:'Receita', prato:String(rc.prato).slice(0,80), porcao:String(rc.rendimento||''), tempo:String(rc.tempo||''), rendimento:String(rc.rendimento||''), ingredientes:ing, passos});
+          });
+        } catch(e){ falhou++; }
+      }
+      state.plan = plan; planTab='cardapio'; render(); savePlanNow();
+      toast('Dieta importada'+(nomes.length ? ' com '+(nomes.length)+' receita'+(nomes.length>1?'s':'') : '')+(falhou ? ' (algumas receitas não vieram; dá para pedir de novo na aba Receitas)' : ''));
+    } catch(e){ step('Importar dieta em PDF'); pdfLab.style.opacity=''; pdfIn.disabled=false; btn.disabled=false; showErr('Não consegui importar o PDF: '+errMsg(e)); }
   }
 }
 function confirmReplace(){ return window.confirm('Isso vai substituir o plano atual (e a seleção da lista de compras). Continuar?'); }
@@ -1443,6 +1589,7 @@ function confirmReplace(){ return window.confirm('Isso vai substituir o plano at
 function renderRecipes(v, plan){
   const seen = {}; const dishes = [];
   planMeals(plan).forEach(x=>{ const n=normName(x.m.prato); if (seen[n]) { seen[n].vezes++; return; } seen[n] = {m:x.m, refeicao:x.m.refeicao, vezes:1}; dishes.push(seen[n]); });
+  (plan.extras||[]).forEach(m=>{ const n=normName(m.prato); if (!seen[n]) { seen[n] = {m, refeicao:'Receita do PDF', vezes:1}; dishes.push(seen[n]); } });
   v.append(h('p',{class:'muted small',style:'margin:0 0 10px'},'Toque num prato para ver ingredientes e modo de preparo.'));
   v.append(h('div',{class:'card'}, dishes.map(dd=>h('button',{class:'recipe-row',onclick:()=>openRecipe(dd.m)},
     h('div',{style:'min-width:0'}, h('span',{class:'r'}, dd.refeicao), h('b',{}, dd.m.prato)),
@@ -1450,13 +1597,13 @@ function renderRecipes(v, plan){
 }
 function openRecipe(m){
   const body = h('div',{style:'display:flex;flex-direction:column;gap:12px'});
-  const sameDish = () => planMeals(state.plan).filter(x=>normName(x.m.prato)===normName(m.prato)).map(x=>x.m);
+  const sameDish = () => { const l = planMeals(state.plan).filter(x=>normName(x.m.prato)===normName(m.prato)).map(x=>x.m); return l.length ? l : [m]; };
   const draw = (busy) => {
     fill(body,
       h('div',{}, h('span',{class:'r',style:'font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.05em'}, m.refeicao),
         h('p',{class:'small muted',style:'margin:2px 0 0'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal' : '', m.tempo, m.rendimento].filter(Boolean).join(' · '))),
       h('div',{}, h('h4',{style:'margin:0 0 6px'},'Ingredientes'),
-        m.ingredientes && m.ingredientes.length ? h('ul',{class:'small',style:'margin:0;padding-left:18px'}, m.ingredientes.map(i=>h('li',{}, i.nome+' — '+fmtQty(i.qtd,i.un)))) : h('p',{class:'small muted',style:'margin:0'},'Ainda sem lista de ingredientes.')),
+        (m.receitaIng && m.receitaIng.length ? m.receitaIng : m.ingredientes||[]).length ? h('ul',{class:'small',style:'margin:0;padding-left:18px'}, (m.receitaIng && m.receitaIng.length ? m.receitaIng : m.ingredientes).map(i=>h('li',{}, i.nome+' — '+fmtQty(i.qtd,i.un)))) : h('p',{class:'small muted',style:'margin:0'},'Ainda sem lista de ingredientes.')),
       h('div',{}, h('h4',{style:'margin:0 0 6px'},'Modo de preparo'),
         m.passos && m.passos.length ? h('ol',{class:'small',style:'margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px'}, m.passos.map(p=>h('li',{},p)))
           : m.preparo ? h('p',{class:'small',style:'margin:0'}, m.preparo) : h('p',{class:'small muted',style:'margin:0'},'Ainda sem modo de preparo.')),
@@ -1492,10 +1639,10 @@ function renderShopping(v, plan){
     h('p',{class:'muted small',style:'margin:8px 0'},'Marque as refeições do plano que você vai fazer esta semana. A lista soma os ingredientes só delas.'),
     h('div',{style:'display:flex;gap:14px;margin-bottom:6px'}, h('button',{class:'link',onclick:()=>setAll(true)},'Marcar tudo'), h('button',{class:'link',onclick:()=>setAll(false)},'Limpar')),
     plan.dias.map((d,di)=>{
-      const keys = (d.refeicoes||[]).map((m,mi)=>di+'|'+mi); const allOn = keys.length && keys.every(k=>sel.has(k));
+      const keys = (d.refeicoes||[]).map((m,mi)=>m.id||(di+'|'+mi)); const allOn = keys.length && keys.every(k=>sel.has(k));
       return h('div',{class:'day-plan'},
         h('div',{class:'card-head',style:'margin-bottom:6px'}, h('b',{},d.dia), h('button',{class:'link',onclick:()=>{ keys.forEach(k=>allOn?sel.delete(k):sel.add(k)); plan.sel=[...sel]; savePlanNow(); render(); }}, allOn?'Desmarcar dia':'Dia inteiro')),
-        h('div',{class:'seg'}, (d.refeicoes||[]).map((m,mi)=>h('button',{class:'pill','aria-pressed':String(sel.has(di+'|'+mi)),onclick:()=>toggle(di+'|'+mi)}, m.refeicao+': '+m.prato.slice(0,40)+(m.prato.length>40?'…':'')))));
+        h('div',{class:'seg'}, (d.refeicoes||[]).map((m,mi)=>h('button',{class:'pill','aria-pressed':String(sel.has(m.id||(di+'|'+mi))),onclick:()=>toggle(m.id||(di+'|'+mi))}, m.refeicao+': '+m.prato.slice(0,40)+(m.prato.length>40?'…':'')))));
     }));
   v.append(pick);
   if (!plan.sel.length) return;

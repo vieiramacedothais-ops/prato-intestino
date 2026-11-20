@@ -1,5 +1,5 @@
 // Prato & Intestino — guarda o app no celular para abrir sem internet.
-const VERSION = 'pi-v7';
+const VERSION = 'pi-v9';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
