@@ -204,6 +204,19 @@ textarea{resize:none}
 .day-plan:first-of-type{border-top:0;margin-top:0;padding-top:0}
 .pmeal{display:flex;flex-direction:column;gap:2px;padding:8px 0}
 .pmeal .r{font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.05em}
+.recipe-row{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;border-top:1px solid var(--line);background:none;text-align:left;padding:10px 0;color:var(--ink);font:inherit}
+.recipe-row:first-child{border-top:0}
+.recipe-row b{display:block;font-size:15px}
+.recipe-row .r{font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.05em}
+.pick summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none}
+.pick summary::-webkit-details-marker{display:none}
+.pick summary::after{content:'▾';color:var(--muted);margin-left:auto}
+.pick[open] summary::after{content:'▴'}
+.pick .seg .pill{text-align:left}
+.shop h4{margin:12px 0 4px;font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em}
+.shop label{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:15px;border-top:1px solid var(--line)}
+.shop input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--accent)}
+.shop label.done span{text-decoration:line-through;opacity:.55}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;z-index:60;font-size:14px;font-weight:600;text-align:center;max-width:90%}
 @media (prefers-reduced-motion: no-preference){.sheet{animation:up .22s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.6}}}
 </style>
@@ -947,23 +960,104 @@ function insightCard(){
 }
 
 /* ================= PLANO ================= */
+/* O plano pode vir da IA ou de um PDF da nutricionista. Cada refeição pode ter:
+   ingredientes [{nome, qtd, un, cat}] (para a lista de compras) e passos [...] (modo de preparo detalhado).
+   plan.sel = refeições escolhidas para a semana · plan.ok = itens já comprados */
+const CATS = ['Hortifrúti','Carnes, peixes e ovos','Laticínios','Grãos e cereais','Padaria','Mercearia','Temperos','Bebidas','Congelados','Outros'];
+const ING_JSON = '"ingredientes":[{"nome":"nome simples do ingrediente, ex. arroz branco","quantidade":número ou null,"unidade":"g" | "ml" | "unidade" | "fatia" | "colher de sopa" | "colher de chá" | "xícara" | "a gosto","categoria":uma de '+JSON.stringify(CATS)+'}]';
+const normName = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+function normIng(list){
+  return (Array.isArray(list)?list:[]).filter(i=>i&&i.nome).map(i=>{
+    const q = i.quantidade!=null ? +i.quantidade : (i.qtd!=null ? +i.qtd : NaN);
+    const cat = CATS.includes(i.categoria||i.cat) ? (i.categoria||i.cat) : 'Outros';
+    return {nome:String(i.nome).slice(0,60), qtd:isFinite(q)&&q>0 ? Math.round(q*100)/100 : null, un:String(i.unidade||i.un||'').slice(0,20), cat};
+  });
+}
+function normPlan(r, fonte, nome){
+  const dias = (r.dias||[]).filter(d=>d&&Array.isArray(d.refeicoes)).map(d=>({dia:String(d.dia||'Dia'), refeicoes:d.refeicoes.filter(m=>m&&m.prato).map(m=>({
+    refeicao:String(m.refeicao||''), prato:String(m.prato), porcao:String(m.porcao||''), preparo:String(m.preparo||''),
+    kcal:+m.kcal||0, proteina:+m.proteina||0, carboidratos:+m.carboidratos||0, gorduras:+m.gorduras||0, fibras:+m.fibras||0,
+    ingredientes: m.ingredientes ? normIng(m.ingredientes) : null, passos: Array.isArray(m.passos) ? m.passos.map(String) : null }))}));
+  return {fonte, nome:nome||'', geradoEm:Date.now(), dias, sel:[], ok:[], obs:String(r.observacoes||'')};
+}
+const planMeals = plan => { const out=[]; (plan.dias||[]).forEach((d,di)=>(d.refeicoes||[]).forEach((m,mi)=>out.push({d, m, di, mi, key:di+'|'+mi}))); return out; };
+const fmtQty = (q, un) => {
+  if (q==null) return un && un!=='a gosto' ? un : 'a gosto';
+  if (un==='g' && q>=1000) return nf(q/1000,2)+' kg';
+  if (un==='ml' && q>=1000) return nf(q/1000,2)+' L';
+  const u = (un==='unidade' && q>1) ? 'unidades' : (un==='fatia' && q>1) ? 'fatias' : un;
+  return nf(q,1)+(u ? ' '+u : '');
+};
+function shoppingList(plan){
+  const sel = new Set(plan.sel||[]); const map = {}; const semIng = [];
+  planMeals(plan).forEach(x=>{
+    if (!sel.has(x.key)) return;
+    if (!x.m.ingredientes || !x.m.ingredientes.length){ semIng.push(x); return; }
+    x.m.ingredientes.forEach(i=>{
+      const k = normName(i.nome)+'|'+(i.qtd==null?'':i.un);
+      const it = map[k] || (map[k] = {key:k, nome:i.nome, cat:i.cat, un:i.un, qtd:null, vezes:0});
+      it.vezes++; if (i.qtd!=null) it.qtd = (it.qtd||0) + i.qtd;
+    });
+  });
+  // mesmo ingrediente com unidades diferentes fica junto numa linha só
+  const byName = {};
+  Object.values(map).forEach(it=>{ const n=normName(it.nome); (byName[n] = byName[n] || {key:n, nome:it.nome, cat:it.cat, partes:[]}).partes.push(it); });
+  const items = Object.values(byName).map(g=>({key:g.key, nome:g.nome, cat:g.cat, txt:g.partes.map(p=>fmtQty(p.qtd,p.un)).filter((t,i,a)=>a.indexOf(t)===i).join(' + ')}));
+  items.sort((a,b)=>CATS.indexOf(a.cat)-CATS.indexOf(b.cat) || a.nome.localeCompare(b.nome,'pt-BR'));
+  return {items, semIng};
+}
+function savePlanNow(){
+  const plan = state.plan; if (!plan) return;
+  if (plan.dias && plan.sel){ const {items} = shoppingList(plan); plan.listaSemana = items.map(i=>i.nome+' — '+i.txt); }
+  persistSoon(); run('savePlan', plan).catch(()=>toast('Não consegui salvar o plano na planilha.'));
+}
+/* IA completa ingredientes de pratos que vieram sem lista (em lotes, para não demorar demais) */
+async function fillIngredients(list, onStep){
+  const plan = state.plan; const pratos = [];
+  list.forEach(x=>{ if (!pratos.some(p=>normName(p.prato)===normName(x.m.prato))) pratos.push({prato:x.m.prato, porcao:x.m.porcao}); });
+  for (let i=0; i<pratos.length; i+=6){
+    const lote = pratos.slice(i,i+6);
+    onStep && onStep(i, pratos.length);
+    const prompt = 'Você é uma nutricionista brasileira. Para cada prato abaixo, liste os ingredientes crus necessários para preparar UMA porção (a porção indicada), em quantidades de compra.\n'+
+      'Responda SOMENTE com JSON: {"pratos":[{"prato":"igual ao recebido",'+ING_JSON+'}]}\n'+
+      'Pratos: '+JSON.stringify(lote);
+    const r = await run('askGemini', prompt, []);
+    (r.pratos||[]).forEach(p=>{ const n=normName(p.prato); planMeals(plan).forEach(x=>{ if (normName(x.m.prato)===n) x.m.ingredientes = normIng(p.ingredientes); }); });
+  }
+  savePlanNow();
+}
+let planTab = 'cardapio';
 function renderPlan(v){
-  const plan = state.plan;
+  const plan = state.plan && state.plan.dias ? state.plan : null;
+  const seg = h('div',{class:'seg',style:'margin-bottom:12px'}, [['cardapio','Cardápio'],['receitas','Receitas'],['compras','Lista de compras']].map(([k,t])=>
+    h('button',{class:'pill','aria-pressed':String(planTab===k),onclick:()=>{planTab=k; render();}}, t)));
+  v.append(seg);
+  if (planTab==='receitas' && plan) return renderRecipes(v, plan);
+  if (planTab==='compras' && plan) return renderShopping(v, plan);
+  if (planTab!=='cardapio' && !plan) v.append(h('p',{class:'muted small'},'Primeiro gere um plano com a IA ou importe a dieta em PDF.'));
+
   const prefs = h('textarea',{id:'plan-prefs',rows:'3',placeholder:'Ex.: não como carne de porco; gosto de comida simples; almoço fora de casa nos dias úteis'});
   prefs.value = P().preferencias || '';
-  const btn = h('button',{class:'btn primary block',onclick:gen}, plan ? 'Gerar novo plano' : 'Gerar plano da semana');
-  v.append(h('div',{class:'card'}, h('h3',{},'Plano alimentar com receitas'),
-    h('p',{class:'muted small',style:'margin:4px 0 10px'},'A IA monta 7 dias de refeições pensados para as suas metas ('+nf(goals().kcal)+' kcal), com porções, preparo e lista de compras. O plano também vai para a aba "Plano alimentar" da sua planilha.'),
-    h('label',{class:'f',for:'plan-prefs'},'Preferências e restrições', prefs), h('div',{style:'height:10px'}), btn));
-  if (plan && plan.dias){
+  const btn = h('button',{class:'btn primary block',onclick:gen}, plan ? 'Gerar novo plano com a IA' : 'Gerar plano da semana com a IA');
+  const pdfIn = h('input',{type:'file',accept:'application/pdf',class:'overlay-file','aria-label':'Escolher PDF da dieta'});
+  const pdfLab = h('label',{class:'btn ghost block',style:'position:relative;overflow:hidden'}, 'Importar dieta em PDF', pdfIn);
+  pdfIn.onchange = () => { const f = pdfIn.files[0]; pdfIn.value=''; if (f) importPdf(f); };
+  v.append(h('div',{class:'card'}, h('h3',{},'Plano alimentar'),
+    h('p',{class:'muted small',style:'margin:4px 0 10px'},'Peça para a IA montar 7 dias pensados para as suas metas ('+nf(goals().kcal)+' kcal) ou importe o PDF da dieta da sua nutricionista. O plano também vai para a aba "Plano alimentar" da sua planilha.'),
+    h('label',{class:'f',for:'plan-prefs'},'Preferências e restrições (para a IA)', prefs), h('div',{style:'height:10px'}), btn, h('div',{style:'height:8px'}), pdfLab));
+  if (plan){
+    v.append(h('p',{class:'muted small',style:'margin:0 0 10px'}, (plan.fonte==='pdf' ? 'Dieta importada do PDF'+(plan.nome?' "'+plan.nome+'"':'') : 'Plano gerado pela IA')+' em '+new Date(plan.geradoEm||Date.now()).toLocaleDateString('pt-BR')+'.'));
+    if (plan.obs) v.append(h('div',{class:'card'}, h('h3',{},'Orientações da dieta'), h('p',{class:'small',style:'margin:6px 0 0;white-space:pre-line'}, plan.obs)));
     plan.dias.forEach(d=>{
       const tot = (d.refeicoes||[]).reduce((s,m)=>s+(+m.kcal||0),0);
-      v.append(h('div',{class:'card'}, h('div',{class:'card-head'}, h('h3',{},d.dia), h('span',{class:'muted small'},'≈ '+nf(tot)+' kcal')),
-        (d.refeicoes||[]).map(m=>h('div',{class:'pmeal'}, h('span',{class:'r'}, m.refeicao), h('b',{}, m.prato), h('span',{class:'small muted'}, (m.porcao?m.porcao+' · ':'')+nf(m.kcal)+' kcal · P '+nf(m.proteina)+'g · C '+nf(m.carboidratos)+'g · G '+nf(m.gorduras)+'g'),
+      v.append(h('div',{class:'card'}, h('div',{class:'card-head'}, h('h3',{},d.dia), tot ? h('span',{class:'muted small'},'≈ '+nf(tot)+' kcal') : null),
+        (d.refeicoes||[]).map(m=>h('div',{class:'pmeal'}, h('span',{class:'r'}, m.refeicao), h('b',{}, m.prato),
+          h('span',{class:'small muted'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal · P '+nf(m.proteina)+'g · C '+nf(m.carboidratos)+'g · G '+nf(m.gorduras)+'g' : ''].filter(Boolean).join(' · ')),
           m.preparo ? h('span',{class:'small'}, m.preparo) : null,
-          h('button',{class:'link',style:'align-self:flex-start',onclick:()=>openMeal(null,{meal:m.refeicao, item:{nome:m.prato, quantidade:m.porcao, kcal:m.kcal, proteina:m.proteina, carboidratos:m.carboidratos, gorduras:m.gorduras, fibras:m.fibras}})},'Comi isso: registrar')))));
+          h('div',{style:'display:flex;gap:14px;flex-wrap:wrap'},
+            h('button',{class:'link',onclick:()=>openRecipe(m)},'Ver receita'),
+            h('button',{class:'link',onclick:()=>openMeal(null,{meal:m.refeicao, item:{nome:m.prato, quantidade:m.porcao, kcal:m.kcal, proteina:m.proteina, carboidratos:m.carboidratos, gorduras:m.gorduras, fibras:m.fibras}})},'Comi isso: registrar'))))));
     });
-    if (plan.listaCompras && plan.listaCompras.length) v.append(h('div',{class:'card'}, h('h3',{},'Lista de compras'), h('ul',{style:'margin:8px 0 0;padding-left:18px;font-size:14px'}, plan.listaCompras.map(i=>h('li',{},i)))));
   }
   async function gen(){
     if (!state.info.hasKey){ openSettings(); return; }
@@ -973,12 +1067,123 @@ function renderPlan(v){
     const prompt = 'Você é uma nutricionista brasileira. Monte um plano alimentar de 7 dias (Segunda a Domingo) com 4 refeições por dia (Café da manhã, Almoço, Lanche da tarde, Jantar), com comida brasileira do dia a dia, acessível e variada.\n'+
       'Metas diárias aproximadas: '+g.kcal+' kcal, proteína '+g.p+' g, carboidratos '+g.c+' g, gorduras '+g.g+' g, fibras '+g.f+' g. Objetivo: '+(p.objetivo||'manter')+'.\n'+
       'Preferências e restrições: '+(prefs.value.trim()||'nenhuma informada')+'.\n'+
-      'Responda SOMENTE com JSON: {"dias":[{"dia":"Segunda","refeicoes":[{"refeicao":"Café da manhã","prato":"nome","porcao":"medidas caseiras","preparo":"até 2 frases","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n}]}],"listaCompras":["item com quantidade aproximada para a semana"]}\n'+
-      'Reaproveite ingredientes entre os dias para facilitar as compras.';
+      'Responda SOMENTE com JSON: {"dias":[{"dia":"Segunda","refeicoes":[{"refeicao":"Café da manhã","prato":"nome","porcao":"medidas caseiras","preparo":"até 2 frases","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]}\n'+
+      'Os ingredientes são crus, para UMA porção, em quantidade de compra. Reaproveite ingredientes entre os dias para facilitar as compras.';
     try { const r = await run('askGemini', prompt, []); if (!r || !Array.isArray(r.dias)) throw new Error('A IA não montou o plano direito. Tente de novo.');
-      r.geradoEm = Date.now(); state.plan = r; render(); toast('Plano pronto'); run('savePlan', r).catch(()=>toast('Não consegui salvar o plano na planilha.')); }
+      state.plan = normPlan(r, 'ia'); render(); toast('Plano pronto'); savePlanNow(); }
     catch(e){ toast(errMsg(e)); btn.disabled=false; btn.textContent='Tentar de novo'; }
   }
+  async function importPdf(file){
+    if (!state.info.hasKey){ openSettings(); return; }
+    if (file.size > 15*1024*1024){ toast('Esse PDF é grande demais (máximo 15 MB).'); return; }
+    if (state.plan && state.plan.dias && !confirmReplace()) return;
+    pdfLab.firstChild.textContent = 'Lendo o PDF… (pode levar 1 minuto)'; pdfLab.style.opacity='.6'; pdfIn.disabled = true; btn.disabled = true;
+    try {
+      const b64 = await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(String(fr.result).split(',')[1]); fr.onerror=()=>rej(new Error('Não consegui abrir o PDF.')); fr.readAsDataURL(file); });
+      const prompt = 'O PDF anexado é uma dieta (plano alimentar) feita por uma nutricionista. Transcreva-a fielmente para o JSON abaixo, em português do Brasil.\n'+
+        'Responda SOMENTE com JSON: {"nome":"título curto da dieta","observacoes":"orientações gerais da nutricionista (água, horários, o que evitar), ou vazio","dias":[{"dia":"rótulo","refeicoes":[{"refeicao":"ex. Café da manhã","prato":"o que comer, resumido","porcao":"quantidades como estão no PDF","preparo":"modo de preparo se o PDF trouxer, senão vazio","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]}\n'+
+        'Regras: não invente alimentos que não estão no PDF. Se a dieta for por dia da semana, use um "dia" por dia. Se for um cardápio único para todos os dias, use um só "dia" chamado "Todos os dias". '+
+        'Se uma refeição tiver opções de substituição (Opção 1, Opção 2…), crie uma entrada separada para cada opção, com "prato" começando por "Opção 1: ", "Opção 2: " etc. '+
+        'Os ingredientes são os alimentos da refeição convertidos para quantidade de compra (ex. "2 fatias de pão integral" → pão integral, 2, fatia). '+
+        'Use calorias e macros do PDF se houver; se não houver, estime pela Tabela TACO.';
+      const r = await run('askGemini', prompt, [{mime:'application/pdf', data:b64}]);
+      if (!r || !Array.isArray(r.dias) || !r.dias.length) throw new Error('Não consegui entender essa dieta. Confira se o PDF tem texto (não só foto) e tente de novo.');
+      state.plan = normPlan(r, 'pdf', String(r.nome||file.name.replace(/\.pdf$/i,'')).slice(0,60)); planTab='cardapio'; render(); toast('Dieta importada'); savePlanNow();
+    } catch(e){ toast(errMsg(e)); render(); }
+  }
+}
+function confirmReplace(){ return window.confirm('Isso vai substituir o plano atual (e a seleção da lista de compras). Continuar?'); }
+
+/* ---------- Receitas ---------- */
+function renderRecipes(v, plan){
+  const seen = {}; const dishes = [];
+  planMeals(plan).forEach(x=>{ const n=normName(x.m.prato); if (seen[n]) { seen[n].vezes++; return; } seen[n] = {m:x.m, refeicao:x.m.refeicao, vezes:1}; dishes.push(seen[n]); });
+  v.append(h('p',{class:'muted small',style:'margin:0 0 10px'},'Toque num prato para ver ingredientes e modo de preparo.'));
+  v.append(h('div',{class:'card'}, dishes.map(dd=>h('button',{class:'recipe-row',onclick:()=>openRecipe(dd.m)},
+    h('div',{style:'min-width:0'}, h('span',{class:'r'}, dd.refeicao), h('b',{}, dd.m.prato)),
+    h('span',{class:'small muted',style:'flex:none'}, (dd.m.passos ? '✓ ' : '')+(dd.vezes>1 ? dd.vezes+'x na semana' : ''))))));
+}
+function openRecipe(m){
+  const body = h('div',{style:'display:flex;flex-direction:column;gap:12px'});
+  const sameDish = () => planMeals(state.plan).filter(x=>normName(x.m.prato)===normName(m.prato)).map(x=>x.m);
+  const draw = (busy) => {
+    fill(body,
+      h('div',{}, h('span',{class:'r',style:'font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.05em'}, m.refeicao),
+        h('p',{class:'small muted',style:'margin:2px 0 0'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal' : '', m.tempo, m.rendimento].filter(Boolean).join(' · '))),
+      h('div',{}, h('h4',{style:'margin:0 0 6px'},'Ingredientes'),
+        m.ingredientes && m.ingredientes.length ? h('ul',{class:'small',style:'margin:0;padding-left:18px'}, m.ingredientes.map(i=>h('li',{}, i.nome+' — '+fmtQty(i.qtd,i.un)))) : h('p',{class:'small muted',style:'margin:0'},'Ainda sem lista de ingredientes.')),
+      h('div',{}, h('h4',{style:'margin:0 0 6px'},'Modo de preparo'),
+        m.passos && m.passos.length ? h('ol',{class:'small',style:'margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px'}, m.passos.map(p=>h('li',{},p)))
+          : m.preparo ? h('p',{class:'small',style:'margin:0'}, m.preparo) : h('p',{class:'small muted',style:'margin:0'},'Ainda sem modo de preparo.')),
+      (!m.passos || !m.passos.length) ? h('button',{class:'btn primary block',disabled:busy||undefined,onclick:detail}, busy ? 'A IA está escrevendo a receita…' : 'Ver passo a passo com a IA') : null);
+  };
+  async function detail(){
+    if (!state.info.hasKey){ s.close(); openSettings(); return; }
+    draw(true);
+    const prompt = 'Você é uma cozinheira e nutricionista brasileira. Escreva a receita do prato abaixo para UMA porção, simples e caseira.\n'+
+      'Responda SOMENTE com JSON: {'+ING_JSON+',"passos":["passo curto e claro"],"tempo":"ex. 20 min","rendimento":"ex. 1 porção"}\n'+
+      'Prato: '+JSON.stringify({refeicao:m.refeicao, prato:m.prato, porcao:m.porcao, preparo:m.preparo, ingredientes_ja_conhecidos:m.ingredientes||null});
+    try {
+      const r = await run('askGemini', prompt, []);
+      if (!r || !Array.isArray(r.passos) || !r.passos.length) throw new Error('A IA não montou a receita. Tente de novo.');
+      sameDish().forEach(x=>{ x.passos = r.passos.map(String).slice(0,20); x.tempo = String(r.tempo||''); x.rendimento = String(r.rendimento||''); if (!x.ingredientes || !x.ingredientes.length) x.ingredientes = normIng(r.ingredientes); });
+      savePlanNow(); draw(false); render();
+    } catch(e){ toast(errMsg(e)); draw(false); }
+  }
+  const s = openSheet(m.prato, body);
+  draw(false);
+}
+
+/* ---------- Lista de compras ---------- */
+let pickOpen = null;
+function renderShopping(v, plan){
+  plan.sel = plan.sel || []; plan.ok = plan.ok || [];
+  const sel = new Set(plan.sel);
+  const toggle = key => { if (sel.has(key)) sel.delete(key); else sel.add(key); plan.sel = [...sel]; savePlanNow(); render(); };
+  const setAll = on => { plan.sel = on ? planMeals(plan).map(x=>x.key) : []; savePlanNow(); render(); };
+  if (pickOpen===null) pickOpen = !plan.sel.length;
+  const pick = h('details',{class:'card pick',open:pickOpen||undefined,ontoggle:ev=>{ pickOpen = ev.currentTarget.open; }},
+    h('summary',{}, h('b',{},'Refeições da semana'), h('span',{class:'small muted'}, plan.sel.length+' escolhida'+(plan.sel.length===1?'':'s'))),
+    h('p',{class:'muted small',style:'margin:8px 0'},'Marque as refeições do plano que você vai fazer esta semana. A lista soma os ingredientes só delas.'),
+    h('div',{style:'display:flex;gap:14px;margin-bottom:6px'}, h('button',{class:'link',onclick:()=>setAll(true)},'Marcar tudo'), h('button',{class:'link',onclick:()=>setAll(false)},'Limpar')),
+    plan.dias.map((d,di)=>{
+      const keys = (d.refeicoes||[]).map((m,mi)=>di+'|'+mi); const allOn = keys.length && keys.every(k=>sel.has(k));
+      return h('div',{class:'day-plan'},
+        h('div',{class:'card-head',style:'margin-bottom:6px'}, h('b',{},d.dia), h('button',{class:'link',onclick:()=>{ keys.forEach(k=>allOn?sel.delete(k):sel.add(k)); plan.sel=[...sel]; savePlanNow(); render(); }}, allOn?'Desmarcar dia':'Dia inteiro')),
+        h('div',{class:'seg'}, (d.refeicoes||[]).map((m,mi)=>h('button',{class:'pill','aria-pressed':String(sel.has(di+'|'+mi)),onclick:()=>toggle(di+'|'+mi)}, m.refeicao+': '+m.prato.slice(0,40)+(m.prato.length>40?'…':'')))));
+    }));
+  v.append(pick);
+  if (!plan.sel.length) return;
+
+  const {items, semIng} = shoppingList(plan);
+  const ok = new Set(plan.ok);
+  if (semIng.length){
+    const b = h('button',{class:'btn ghost block',onclick:async()=>{
+      if (!state.info.hasKey){ openSettings(); return; }
+      b.disabled = true;
+      try { await fillIngredients(semIng, (i,n)=>{ b.textContent='Calculando ingredientes… ('+Math.min(i+6,n)+' de '+n+' pratos)'; }); render(); toast('Ingredientes prontos'); }
+      catch(e){ toast(errMsg(e)); b.disabled=false; b.textContent='Tentar de novo'; }
+    }},'Calcular ingredientes com a IA');
+    v.append(h('div',{class:'card'}, h('p',{class:'small',style:'margin:0 0 8px'}, semIng.length+(semIng.length>1?' refeições escolhidas ainda não têm':' refeição escolhida ainda não tem')+' lista de ingredientes: '+[...new Set(semIng.map(x=>x.m.prato))].slice(0,4).join('; ')+(semIng.length>4?'…':'')), b));
+  }
+  if (!items.length) return;
+  const share = async () => {
+    const txt = 'Lista de compras\n'+CATS.map(c=>{ const its=items.filter(i=>i.cat===c&&!ok.has(i.key)); return its.length ? '\n'+c+'\n'+its.map(i=>'- '+i.nome+' — '+i.txt).join('\n') : ''; }).join('');
+    try { if (navigator.share) await navigator.share({text:txt}); else { await navigator.clipboard.writeText(txt); toast('Lista copiada'); } } catch(e){}
+  };
+  const left = items.filter(i=>!ok.has(i.key)).length;
+  v.append(h('div',{class:'card'},
+    h('div',{class:'card-head'}, h('h3',{},'Lista de compras'), h('span',{class:'small muted'}, left ? 'faltam '+left : 'tudo comprado 🎉')),
+    h('p',{class:'muted small',style:'margin:0 0 6px'},'Quantidades somadas para 1 porção de cada refeição escolhida.'),
+    CATS.map(c=>{ const its = items.filter(i=>i.cat===c); if (!its.length) return null;
+      return h('div',{class:'shop'}, h('h4',{}, c), its.map(i=>{
+        const cb = h('input',{type:'checkbox',checked:ok.has(i.key)||undefined});
+        cb.onchange = () => { if (cb.checked) ok.add(i.key); else ok.delete(i.key); plan.ok=[...ok]; savePlanNow(); render(); };
+        return h('label',{class:ok.has(i.key)?'done':''}, cb, h('span',{}, h('b',{}, i.nome), ' ', h('span',{class:'muted'}, i.txt)));
+      })); }),
+    h('div',{style:'display:flex;gap:10px;margin-top:10px'},
+      h('button',{class:'btn ghost',style:'flex:1',onclick:share},'Compartilhar lista'),
+      h('button',{class:'btn ghost',style:'flex:1',onclick:()=>{ plan.ok=[]; savePlanNow(); render(); }},'Desmarcar itens'))));
 }
 
 /* ================= DIÁRIO ================= */
