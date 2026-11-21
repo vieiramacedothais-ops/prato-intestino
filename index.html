@@ -96,6 +96,24 @@ header.top h1{font-size:26px;line-height:1.05}
 .ingrow input,.ingrow select{padding:8px;font-size:14px;min-width:0}
 .ingrow>:nth-child(1){grid-column:1/3}.ingrow>:nth-child(2){grid-column:3}.ingrow>:nth-child(3){grid-column:1;grid-row:2}.ingrow>:nth-child(4){grid-column:2/5;grid-row:2}.ingrow>:nth-child(5){grid-column:4;grid-row:1}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.diet summary{display:flex;justify-content:space-between;align-items:center;gap:12px;list-style:none;cursor:pointer}
+.diet summary::-webkit-details-marker{display:none}
+.dbar{flex:none;width:70px;height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.dbar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.dgroup{border-top:1px solid var(--line);padding:10px 0 4px}
+.dg-head{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.dg-ok{margin-left:auto;color:var(--accent);font-weight:700}
+.dgroup.ok .dg-head b{color:var(--accent)}
+.dopt{display:flex;gap:10px;align-items:flex-start;padding:7px 0}
+.dopt input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:var(--accent)}
+.dopt>span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.dopt-t{font-size:15px}
+.dopt.on .dopt-t{font-weight:600}
+.optrow{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.optrow .pill{flex:1;text-align:left}
+.stepper{display:flex;align-items:center;gap:4px;flex:none}
+.stepper button{width:32px;height:32px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font-size:18px;color:var(--ink)}
+.stepper span{min-width:28px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
 .exlist{display:flex;flex-direction:column;gap:10px}
 .exitem{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .exitem .x{width:30px;height:30px;font-size:16px}
@@ -565,6 +583,7 @@ function renderToday(v){
     h('div',{class:'cups'}, Array.from({length:Math.max(g.agua,cups)},(_,i)=>h('button',{class:'cup','aria-label':'Copo '+(i+1),html:cupSvg(i<cups),onclick:()=>setWater(i<cups?i:i+1)}))),
     h('div',{class:'rowbtns'}, h('button',{class:'mini','aria-label':'Tirar um copo',onclick:()=>setWater(Math.max(0,cups-1))},'−'), h('button',{class:'mini',onclick:()=>setWater(cups+1)},'+ 1 copo ('+g.copo+' ml)'))));
   // jejum
+  const dc = dietTodayCard(); if (dc) v.append(dc);
   v.append(fastCard());
   // treino
   v.append(workoutCard());
@@ -648,6 +667,51 @@ function entryCard(e, clickable=true){
       chips.length ? h('div',{class:'chips'},chips) : null,
       e.nota ? h('div',{class:'sub'}, '“'+e.nota+'”') : null));
 }
+
+/* ================= dieta de hoje (check-list) ================= */
+/* Mostra as refeições da dieta de hoje; marcar uma opção registra a refeição no acompanhamento,
+   desmarcar apaga esse registro. Dieta por opções: todas as refeições com suas opções.
+   Dieta por dia da semana: só o dia de hoje. */
+const WEEKDAYS = ['domingo','segunda','terca','quarta','quinta','sexta','sabado'];
+const isOptPlan = p => !!(p && p.formato==='opcoes');
+function todayGroups(plan){
+  if (!plan || !plan.dias || !plan.dias.length) return [];
+  if (isOptPlan(plan)) return plan.dias.map(d=>({nome:d.dia, horario:d.horario||'', opcoes:d.refeicoes||[]}));
+  const wd = WEEKDAYS[new Date().getDay()];
+  const day = plan.dias.find(d=>normName(d.dia).startsWith(wd)) || plan.dias.find(d=>/todos/.test(normName(d.dia))) || (plan.dias.length===1 ? plan.dias[0] : null);
+  if (!day) return [];
+  const g = []; (day.refeicoes||[]).forEach(m=>{ let x = g.find(y=>normName(y.nome)===normName(m.refeicao)); if (!x) g.push(x = {nome:m.refeicao||'Refeição', horario:'', opcoes:[]}); x.opcoes.push(m); });
+  return g;
+}
+const todayPlanEntry = id => state.entries.find(e=>e.type==='meal' && e.planRef===id && dayKey(e.at)===dayKey(Date.now()));
+async function togglePlanMeal(m, grupo){
+  const done = todayPlanEntry(m.id);
+  if (done) { await deleteEntry(done); return; }
+  await saveEntry({type:'meal', at:Date.now(), meal:grupo, resumo:m.prato.replace(/^Opção \d+:\s*/i,''), planRef:m.id, nota:'', selos:[],
+    items:[{nome:m.prato.replace(/^Opção \d+:\s*/i,''), quantidade:m.porcao||'', kcal:+m.kcal||0, p:+m.proteina||0, c:+m.carboidratos||0, g:+m.gorduras||0, f:+m.fibras||0}]});
+}
+function dietTodayCard(){
+  const plan = state.plan; const gs = todayGroups(plan);
+  if (!gs.length) return null;
+  const feitos = gs.filter(g=>g.opcoes.some(m=>todayPlanEntry(m.id))).length;
+  const kcal = gs.reduce((s,g)=>s+g.opcoes.filter(m=>todayPlanEntry(m.id)).reduce((a,m)=>a+(+m.kcal||0),0),0);
+  return h('details',{class:'card diet',open:dietOpen||undefined,ontoggle:ev=>{ dietOpen = ev.currentTarget.open; }},
+    h('summary',{}, h('div',{}, h('h3',{style:'margin:0'},'Minha dieta hoje'), h('span',{class:'muted small'}, feitos+' de '+gs.length+' refeições'+(kcal?' · '+nf(kcal)+' kcal':''))), h('span',{class:'dbar'}, h('i',{style:'width:'+Math.round(feitos/gs.length*100)+'%'}))),
+    h('p',{class:'muted small',style:'margin:8px 0 4px'},'Marque o que você comeu: vai direto para os seus registros.'),
+    gs.map(g=>{
+      const ok = g.opcoes.some(m=>todayPlanEntry(m.id));
+      return h('div',{class:'dgroup'+(ok?' ok':'')},
+        h('div',{class:'dg-head'}, h('b',{}, g.nome), g.horario ? h('span',{class:'muted small'}, g.horario) : null, ok ? h('span',{class:'dg-ok'},'✓') : null),
+        g.opcoes.map(m=>{
+          const on = !!todayPlanEntry(m.id);
+          const cb = h('input',{type:'checkbox',checked:on||undefined});
+          cb.onchange = async () => { cb.disabled = true; await togglePlanMeal(m, g.nome); };
+          return h('label',{class:'dopt'+(on?' on':'')}, cb, h('span',{}, h('span',{class:'dopt-t'}, m.prato), h('span',{class:'muted small'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal' : ''].filter(Boolean).join(' · '))));
+        }));
+    }),
+    h('button',{class:'link',style:'margin-top:8px',onclick:()=>{ state.tab='plano'; planTab='cardapio'; render(); }},'Ver dieta completa'));
+}
+let dietOpen = true;
 
 /* ================= treino ================= */
 /* Treinos: tipo, duração, intensidade e kcal estimada (MET × peso × horas).
@@ -997,7 +1061,7 @@ function openMeal(existing, preset){
     if (!draft.resumo && draft.items.length) draft.resumo = draft.items.map(i=>i.nome).join(', ').slice(0,120);
     saveBtn.disabled = true; saveBtn.textContent = 'Salvando…';
     if (!draft.items.length && !draft.pendente && newPhotos.length && (!navigator.onLine || !cfg)) draft.pendente = {texto: transcript.slice()};
-    const entry = {id:(existing&&existing.id) || uid(), type:'meal', at:draft.at, meal:draft.meal, resumo:draft.resumo||'', items:draft.items, selos:draft.selos||[], score:draft.score||'',
+    const entry = {id:(existing&&existing.id) || uid(), type:'meal', at:draft.at, meal:draft.meal, resumo:draft.resumo||'', items:draft.items, selos:draft.selos||[], score:draft.score||'', planRef:(existing&&existing.planRef)||null,
       nota:(draft.nota||'').trim(), pendente: draft.pendente || (existing && existing.pendente) || null};
     if (entry.pendente && newPhotos.length) { try { await idb.set('img:'+entry.id, newPhotos.slice(-3).map(p=>p.full)); } catch(e){} }
     const saved = await saveEntry(entry);
@@ -1303,11 +1367,12 @@ function normIng(list){
   });
 }
 function normPlan(r, fonte, nome){
-  const dias = (r.dias||[]).filter(d=>d&&Array.isArray(d.refeicoes)).map(d=>({dia:String(d.dia||'Dia'), refeicoes:d.refeicoes.filter(m=>m&&m.prato).map(m=>({
+  const dias = (r.dias||[]).filter(d=>d&&Array.isArray(d.refeicoes)).map(d=>({dia:String(d.dia||'Dia'), horario:String(d.horario||''), refeicoes:d.refeicoes.filter(m=>m&&m.prato).map(m=>({
     refeicao:String(m.refeicao||''), prato:String(m.prato), porcao:String(m.porcao||''), preparo:String(m.preparo||''),
     kcal:+m.kcal||0, proteina:+m.proteina||0, carboidratos:+m.carboidratos||0, gorduras:+m.gorduras||0, fibras:+m.fibras||0,
     ingredientes: m.ingredientes ? normIng(m.ingredientes) : null, passos: Array.isArray(m.passos) ? m.passos.map(String) : null }))}));
-  return ensureIds({fonte, nome:nome||'', geradoEm:Date.now(), dias, sel:[], ok:[], obs:String(r.observacoes||'')});
+  const subs = (Array.isArray(r.substituicoes) ? r.substituicoes : []).filter(x=>x&&x.grupo&&Array.isArray(x.itens)).map(x=>({grupo:String(x.grupo), itens:x.itens.map(String)}));
+  return ensureIds({fonte, nome:nome||'', formato: r.formato==='opcoes' ? 'opcoes' : 'dias', geradoEm:Date.now(), dias, subs, sel:[], ok:[], vezes:{}, obs:String(r.observacoes||'')});
 }
 const planMeals = plan => { const out=[]; (plan.dias||[]).forEach((d,di)=>(d.refeicoes||[]).forEach((m,mi)=>out.push({d, m, di, mi, key:m.id||(di+'|'+mi)}))); return out; };
 const fmtQty = (q, un) => {
@@ -1322,10 +1387,11 @@ function shoppingList(plan){
   planMeals(plan).forEach(x=>{
     if (!sel.has(x.key)) return;
     if (!x.m.ingredientes || !x.m.ingredientes.length){ semIng.push(x); return; }
+    const mult = Math.max(1, +((plan.vezes||{})[x.key])||1);
     x.m.ingredientes.forEach(i=>{
       const k = normName(i.nome)+'|'+(i.qtd==null?'':i.un);
       const it = map[k] || (map[k] = {key:k, nome:i.nome, cat:i.cat, un:i.un, qtd:null, vezes:0});
-      it.vezes++; if (i.qtd!=null) it.qtd = (it.qtd||0) + i.qtd;
+      it.vezes += mult; if (i.qtd!=null) it.qtd = (it.qtd||0) + i.qtd*mult;
     });
   });
   // mesmo ingrediente com unidades diferentes fica junto numa linha só
@@ -1377,7 +1443,8 @@ function blankPlan(){
 function openMealEdit(di, mi){
   const plan = state.plan, day = plan.dias[di];
   const isNew = mi==null;
-  const m = isNew ? {id:newMealId(), refeicao:DEFAULT_MEALS[Math.min((day.refeicoes||[]).length, DEFAULT_MEALS.length-1)], prato:'', porcao:'', preparo:'', kcal:0, proteina:0, carboidratos:0, gorduras:0, fibras:0, ingredientes:[], passos:null}
+  const opt = isOptPlan(plan);
+  const m = isNew ? {id:newMealId(), refeicao: opt ? day.dia : DEFAULT_MEALS[Math.min((day.refeicoes||[]).length, DEFAULT_MEALS.length-1)], prato:'', porcao:'', preparo:'', kcal:0, proteina:0, carboidratos:0, gorduras:0, fibras:0, ingredientes:[], passos:null}
     : JSON.parse(JSON.stringify(day.refeicoes[mi]));
   m.ingredientes = m.ingredientes || [];
   const inp = (id, v, attrs={}) => { const i = h('input',Object.assign({id, type:'text'},attrs)); i.value = v==null ? '' : v; return i; };
@@ -1413,7 +1480,7 @@ function openMealEdit(di, mi){
   }},'Recalcular calorias e ingredientes com a IA');
   const save = h('button',{class:'btn primary',onclick:()=>{
     if (!prato.value.trim()) { toast('Escreva o que vai comer'); return; }
-    const out = Object.assign(m, {refeicao:refeicao.value.trim()||'Refeição', prato:prato.value.trim(), porcao:porcao.value.trim(), preparo:preparo.value.trim(),
+    const out = Object.assign(m, {refeicao: opt ? plan.dias[+dayPick.value].dia : (refeicao.value.trim()||'Refeição'), prato:prato.value.trim(), porcao:porcao.value.trim(), preparo:preparo.value.trim(),
       passos: passos.value.split('\n').map(x=>x.trim()).filter(Boolean)});
     if (!out.passos.length) out.passos = null;
     nums.forEach(x=>out[x.k] = +x.i.value||0);
@@ -1430,7 +1497,7 @@ function openMealEdit(di, mi){
   }},'Apagar');
   const body = h('div',{style:'display:flex;flex-direction:column;gap:14px'},
     h('datalist',{id:'pe-reflist'}, DEFAULT_MEALS.map(x=>h('option',{value:x}))),
-    h('div',{class:'grid2'}, h('label',{class:'f',for:'pe-ref'},'Refeição', refeicao), h('label',{class:'f',for:'pe-dia'},'Dia', dayPick)),
+    opt ? h('label',{class:'f',for:'pe-dia'},'Refeição', dayPick) : h('div',{class:'grid2'}, h('label',{class:'f',for:'pe-ref'},'Refeição', refeicao), h('label',{class:'f',for:'pe-dia'},'Dia', dayPick)),
     h('label',{class:'f',for:'pe-prato'},'O que comer', prato),
     h('label',{class:'f',for:'pe-porcao'},'Porção', porcao),
     iaBtn,
@@ -1439,21 +1506,22 @@ function openMealEdit(di, mi){
     h('label',{class:'f',for:'pe-prep'},'Preparo resumido', preparo),
     h('label',{class:'f',for:'pe-passos'},'Modo de preparo (passo a passo)', passos));
   drawIng();
-  const s = openSheet(isNew ? 'Nova refeição · '+day.dia : 'Editar refeição', body, [del, save]);
+  const s = openSheet(isNew ? (opt ? 'Nova opção · ' : 'Nova refeição · ')+day.dia : (opt ? 'Editar opção' : 'Editar refeição'), body, [del, save]);
 }
 function editDay(di){
   const plan = state.plan, d = plan.dias[di];
-  const nome = window.prompt('Nome do dia (ex.: Segunda, Dia de treino).\nPara APAGAR o dia, deixe em branco.', d.dia);
+  const opt = isOptPlan(plan);
+  const nome = window.prompt(opt ? 'Nome da refeição (ex.: Café da manhã, Ceia).\nPara APAGAR esta refeição e as opções dela, deixe em branco.' : 'Nome do dia (ex.: Segunda, Dia de treino).\nPara APAGAR o dia, deixe em branco.', d.dia);
   if (nome===null) return;
   if (!nome.trim()) {
-    if (!window.confirm('Apagar "'+d.dia+'" e todas as refeições dele?')) return;
+    if (!window.confirm('Apagar "'+d.dia+'" e '+(opt?'todas as opções':'todas as refeições dele')+'?')) return;
     const ids = new Set((d.refeicoes||[]).map(m=>m.id)); plan.sel = (plan.sel||[]).filter(k=>!ids.has(k));
     plan.dias.splice(di,1);
-  } else d.dia = nome.trim().slice(0,30);
+  } else { const novo = nome.trim().slice(0,30); if (opt) (d.refeicoes||[]).forEach(m=>{ if (m.refeicao===d.dia) m.refeicao = novo; }); d.dia = novo; }
   savePlanNow(); render();
 }
 function addDay(){
-  const nome = window.prompt('Nome do novo dia (ex.: Domingo, Dia livre):'); if (!nome || !nome.trim()) return;
+  const nome = window.prompt(isOptPlan(state.plan) ? 'Nome da nova refeição (ex.: Ceia, Lanche da manhã):' : 'Nome do novo dia (ex.: Domingo, Dia livre):'); if (!nome || !nome.trim()) return;
   state.plan.dias.push({dia:nome.trim().slice(0,30), refeicoes:[]}); savePlanNow(); render();
 }
 
@@ -1485,17 +1553,20 @@ function renderPlan(v){
     ensureIds(plan);
     plan.dias.forEach((d,di)=>{
       const tot = (d.refeicoes||[]).reduce((s,m)=>s+(+m.kcal||0),0);
-      v.append(h('div',{class:'card'}, h('div',{class:'card-head'}, h('h3',{},d.dia), h('div',{style:'display:flex;gap:12px;align-items:center'}, tot ? h('span',{class:'muted small'},'≈ '+nf(tot)+' kcal') : null, h('button',{class:'link',onclick:()=>editDay(di)},'Editar dia'))),
-        (d.refeicoes||[]).map((m,mi)=>h('div',{class:'pmeal'}, h('span',{class:'r'}, m.refeicao), h('b',{}, m.prato),
-          h('span',{class:'small muted'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal · P '+nf(m.proteina)+'g · C '+nf(m.carboidratos)+'g · G '+nf(m.gorduras)+'g' : ''].filter(Boolean).join(' · ')),
+      const opt = isOptPlan(plan);
+      v.append(h('div',{class:'card'}, h('div',{class:'card-head'}, h('h3',{}, d.dia+(d.horario?' · '+d.horario:'')), h('div',{style:'display:flex;gap:12px;align-items:center'}, opt ? h('span',{class:'muted small'}, (d.refeicoes||[]).length+' opç'+((d.refeicoes||[]).length===1?'ão':'ões')) : tot ? h('span',{class:'muted small'},'≈ '+nf(tot)+' kcal') : null, h('button',{class:'link',onclick:()=>editDay(di)}, opt ? 'Editar' : 'Editar dia'))),
+        (d.refeicoes||[]).map((m,mi)=>h('div',{class:'pmeal'}, opt ? null : h('span',{class:'r'}, m.refeicao), h('b',{}, m.prato),
+          h('span',{class:'small muted'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal'+((+m.proteina||+m.carboidratos||+m.gorduras) ? ' · P '+nf(m.proteina)+'g · C '+nf(m.carboidratos)+'g · G '+nf(m.gorduras)+'g' : '') : ''].filter(Boolean).join(' · ')),
           m.preparo ? h('span',{class:'small'}, m.preparo) : null,
           h('div',{style:'display:flex;gap:14px;flex-wrap:wrap'},
             h('button',{class:'link',onclick:()=>openMealEdit(di,mi)},'Editar'),
             h('button',{class:'link',onclick:()=>openRecipe(m)},'Ver receita'),
             h('button',{class:'link',onclick:()=>openMeal(null,{meal:m.refeicao, item:{nome:m.prato, quantidade:m.porcao, kcal:m.kcal, proteina:m.proteina, carboidratos:m.carboidratos, gorduras:m.gorduras, fibras:m.fibras}})},'Comi isso: registrar')))),
-        h('button',{class:'btn ghost block',style:'margin-top:10px',onclick:()=>openMealEdit(di,null)},'+ Adicionar refeição')));
+        h('button',{class:'btn ghost block',style:'margin-top:10px',onclick:()=>openMealEdit(di,null)}, opt ? '+ Adicionar opção' : '+ Adicionar refeição')));
     });
-    v.append(h('button',{class:'btn ghost block',onclick:addDay},'+ Adicionar dia'));
+    v.append(h('button',{class:'btn ghost block',onclick:addDay}, isOptPlan(plan) ? '+ Adicionar refeição (ex.: Ceia)' : '+ Adicionar dia'));
+    if ((plan.subs||[]).length) v.append(h('details',{class:'card pick',style:'margin-top:12px'}, h('summary',{}, h('b',{},'Lista de substituições'), h('span',{class:'small muted'}, plan.subs.length+(plan.subs.length===1?' grupo':' grupos'))),
+      plan.subs.map(g=>h('div',{class:'shop'}, h('h4',{}, g.grupo), h('ul',{class:'small',style:'margin:0;padding-left:18px'}, g.itens.map(x=>h('li',{},x)))))));
   }
   async function gen(){
     if (!state.info.hasKey){ openSettings(); return; }
@@ -1548,10 +1619,13 @@ function renderPlan(v){
       catch(e){ if (file.size > 14*1024*1024) throw e; doc = {mime:'application/pdf', data:b64}; } // PDF pequeno: manda junto no pedido
       step('Lendo o cardápio… (pode levar 1 a 2 minutos)');
       const prompt = 'O PDF anexado é uma dieta (plano alimentar) feita por uma nutricionista. Transcreva o CARDÁPIO fielmente para o JSON abaixo, em português do Brasil.\n'+
-        'Responda SOMENTE com JSON: {"nome":"título curto da dieta","observacoes":"orientações gerais da nutricionista (água, horários, o que evitar, substituições), ou vazio","dias":[{"dia":"rótulo","refeicoes":[{"refeicao":"ex. Café da manhã","prato":"o que comer, resumido","porcao":"quantidades como estão no PDF","preparo":"resumo do preparo em até 2 frases, ou vazio","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]'+
+        'Responda SOMENTE com JSON: {"nome":"título curto da dieta","formato":"opcoes" ou "dias","observacoes":"orientações gerais da nutricionista (água, horários, o que evitar), ou vazio","substituicoes":[{"grupo":"ex. Carboidratos","itens":["1 pão francês = 4 col. de sopa de arroz"]}],"dias":[{"dia":"rótulo","horario":"hh:mm ou vazio","refeicoes":[{"refeicao":"ex. Café da manhã","prato":"o que comer, resumido","porcao":"quantidades como estão no PDF","preparo":"resumo do preparo em até 2 frases, ou vazio","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]'+
         ',"receitas_no_pdf":["nome de cada receita que o PDF traz com modo de preparo completo, como está escrito no PDF"]}\n'+
-        'Regras: não invente alimentos que não estão no PDF. Se a dieta for por dia da semana, use um "dia" por dia. Se for um cardápio único para todos os dias, use um só "dia" chamado "Todos os dias". '+
-        'Se uma refeição tiver opções de substituição (Opção 1, Opção 2…), crie uma entrada separada para cada opção, com "prato" começando por "Opção 1: ", "Opção 2: " etc. '+
+        'Regras: não invente alimentos que não estão no PDF. '+
+        'FORMATO "opcoes" (o mais comum): a dieta lista as refeições do dia (Café da manhã, Lanche, Almoço, Jantar, Ceia…) e cada uma tem uma ou mais opções para escolher. Nesse caso, cada item de "dias" é UMA REFEIÇÃO: "dia" = nome da refeição (ex. "Café da manhã"), "horario" = horário sugerido, e "refeicoes" = TODAS as opções dela, uma entrada por opção, com "refeicao" igual ao nome da refeição e "prato" começando por "Opção 1: ", "Opção 2: " etc. '+
+        'Inclua TODAS as opções de TODAS as refeições, inclusive as que aparecem depois do plano principal, em páginas de "opções", "variações", "cardápio alternativo" ou similares — nunca só a primeira. '+
+        'FORMATO "dias": só use se a dieta for organizada por dia da semana (Segunda, Terça…); aí cada item de "dias" é um dia, e opções dentro de uma refeição viram entradas separadas com "Opção 1: ", "Opção 2: ". '+
+        'Listas de substituição por grupo de alimentos vão em "substituicoes" (deixe [] se não houver). '+
         'Os ingredientes são os alimentos da refeição convertidos para quantidade de compra (ex. "2 fatias de pão integral" → pão integral, 2, fatia). '+
         'Use calorias e macros do PDF se houver; se não houver, estime pela Tabela TACO. NÃO copie aqui o passo a passo das receitas, só liste os nomes em "receitas_no_pdf".';
       const r = await run('askGemini', prompt, [doc]);
@@ -1636,8 +1710,17 @@ function renderShopping(v, plan){
   if (pickOpen===null) pickOpen = !plan.sel.length;
   const pick = h('details',{class:'card pick',open:pickOpen||undefined,ontoggle:ev=>{ pickOpen = ev.currentTarget.open; }},
     h('summary',{}, h('b',{},'Refeições da semana'), h('span',{class:'small muted'}, plan.sel.length+' escolhida'+(plan.sel.length===1?'':'s'))),
-    h('p',{class:'muted small',style:'margin:8px 0'},'Marque as refeições do plano que você vai fazer esta semana. A lista soma os ingredientes só delas.'),
+    h('p',{class:'muted small',style:'margin:8px 0'},isOptPlan(plan) ? 'Marque as opções que você vai fazer esta semana e quantas vezes (×). A lista soma os ingredientes só delas.' : 'Marque as refeições do plano que você vai fazer esta semana. A lista soma os ingredientes só delas.'),
     h('div',{style:'display:flex;gap:14px;margin-bottom:6px'}, h('button',{class:'link',onclick:()=>setAll(true)},'Marcar tudo'), h('button',{class:'link',onclick:()=>setAll(false)},'Limpar')),
+    isOptPlan(plan) ? plan.dias.map(d=>h('div',{class:'day-plan'},
+      h('b',{style:'display:block;margin-bottom:6px'}, d.dia),
+      (d.refeicoes||[]).map(m=>{
+        const on = sel.has(m.id), n = Math.max(1, +((plan.vezes||{})[m.id])||1);
+        const setN = k => { plan.vezes = plan.vezes || {}; plan.vezes[m.id] = Math.max(1, Math.min(14, n+k)); savePlanNow(); render(); };
+        return h('div',{class:'optrow'},
+          h('button',{class:'pill','aria-pressed':String(on),onclick:()=>toggle(m.id)}, m.prato.slice(0,60)+(m.prato.length>60?'…':'')),
+          on ? h('div',{class:'stepper'}, h('button',{'aria-label':'Menos',onclick:()=>setN(-1)},'−'), h('span',{}, n+'×'), h('button',{'aria-label':'Mais',onclick:()=>setN(1)},'+')) : null);
+      }))) :
     plan.dias.map((d,di)=>{
       const keys = (d.refeicoes||[]).map((m,mi)=>m.id||(di+'|'+mi)); const allOn = keys.length && keys.every(k=>sel.has(k));
       return h('div',{class:'day-plan'},
@@ -1666,7 +1749,7 @@ function renderShopping(v, plan){
   const left = items.filter(i=>!ok.has(i.key)).length;
   v.append(h('div',{class:'card'},
     h('div',{class:'card-head'}, h('h3',{},'Lista de compras'), h('span',{class:'small muted'}, left ? 'faltam '+left : 'tudo comprado 🎉')),
-    h('p',{class:'muted small',style:'margin:0 0 6px'},'Quantidades somadas para 1 porção de cada refeição escolhida.'),
+    h('p',{class:'muted small',style:'margin:0 0 6px'}, isOptPlan(plan) ? 'Quantidades somadas pelas vezes que você escolheu fazer cada opção.' : 'Quantidades somadas para 1 porção de cada refeição escolhida.'),
     CATS.map(c=>{ const its = items.filter(i=>i.cat===c); if (!its.length) return null;
       return h('div',{class:'shop'}, h('h4',{}, c), its.map(i=>{
         const cb = h('input',{type:'checkbox',checked:ok.has(i.key)||undefined});
