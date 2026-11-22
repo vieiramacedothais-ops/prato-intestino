@@ -1387,7 +1387,7 @@ function normPlan(r, fonte, nome){
     refeicao:String(m.refeicao||''), prato:String(m.prato), porcao:String(m.porcao||''), preparo:String(m.preparo||''),
     kcal:+m.kcal||0, proteina:+m.proteina||0, carboidratos:+m.carboidratos||0, gorduras:+m.gorduras||0, fibras:+m.fibras||0,
     ingredientes: m.ingredientes ? normIng(m.ingredientes) : null, passos: Array.isArray(m.passos) ? m.passos.map(String) : null }))}));
-  const subs = (Array.isArray(r.substituicoes) ? r.substituicoes : []).filter(x=>x&&x.grupo&&Array.isArray(x.itens)).map(x=>({grupo:String(x.grupo), base:String(x.base||''), refeicoes:Array.isArray(x.refeicoes)?x.refeicoes.map(String):[], itens:x.itens.map(String)}));
+  const subs = (Array.isArray(r.substituicoes) ? r.substituicoes : []).filter(x=>x&&x.grupo&&Array.isArray(x.itens)).map(x=>({grupo:String(x.grupo), base:String(x.base||''), refeicoes:Array.isArray(x.refeicoes)?x.refeicoes.map(String):[], itens:x.itens.map(String), ...(x.opt?{opt:String(x.opt), onde:String(x.onde||'')}:{})}));
   return ensureIds({fonte, nome:nome||'', formato: r.formato==='opcoes' ? 'opcoes' : 'dias', geradoEm:Date.now(), dias, subs, sel:[], ok:[], vezes:{}, obs:String(r.observacoes||'')});
 }
 const planMeals = plan => { const out=[]; (plan.dias||[]).forEach((d,di)=>(d.refeicoes||[]).forEach((m,mi)=>out.push({d, m, di, mi, key:m.id||(di+'|'+mi)}))); return out; };
@@ -1561,7 +1561,7 @@ function addDay(){
 /* plan.trocas = { dia(0..6): { idDaRefeição: { chaveDoGrupo: índiceDoSubstituto } } } */
 const MEAL_WORDS = ['cafe da manha','lanche da manha','almoco','lanche da tarde','lanche','jantar','ceia'];
 const STOP = new Set(['substitutos','substituto','substituicoes','substituicao','opcoes','de','do','da','dos','das','e','ou','para','no','na','nos','nas','o','a','os','as','unidade','unidades','un','g','ml','gramas','grupo','lista','frutas','carboidratos','proteinas','gorduras','fontes','fonte','refeicao','refeicoes','colher','colheres','colhere','xicara','xicaras','fatia','fatias','concha','conchas','porcao','porcoes','cafe','manha','almoco','jantar','ceia','lanche','tarde','ate','com','sem']);
-const subKey = g => normName(g.grupo).slice(0,60);
+const subKey = g => (g.opt ? g.opt+'|' : '')+normName(g.grupo).slice(0,60);
 const sing = w => w.length>3 && w.endsWith('s') ? w.slice(0,-1) : w;
 // palavras que dizem o que o grupo substitui (ex. "Substitutos dos ovos (2 unidades)" → ovo; "(mamão 150g)" → mamao)
 function subKeywords(g){
@@ -1579,6 +1579,7 @@ function subsFor(plan, slot, m){
   const txt = normName([m.prato, m.porcao, ...(m.ingredientes||[]).map(i=>i.nome)].join(' ')).split(' ').map(sing).join(' ');
   const sn = normName(slot.dia);
   return (plan.subs||[]).filter(g=>{
+    if (g.opt) return g.opt===m.id;
     const ms = subMeals(g); if (ms.length && !ms.some(w=>sn.includes(w) || w.includes(sn))) return false;
     return subKeywords(g).some(w=>(' '+txt+' ').includes(' '+w+' ') || txt.includes(w));
   });
@@ -1589,7 +1590,7 @@ function setTroca(plan, di, slot, g, idx){
   if (idx<0) delete s[subKey(g)]; else s[subKey(g)] = idx;
 }
 function trocasTxt(plan, di, slot, m){
-  return (plan.subs||[]).map(g=>{ const i = getTroca(plan, di, slot, g); return i>=0 && g.itens[i] ? g.itens[i] : null; }).filter(Boolean);
+  return (plan.subs||[]).filter(g=>!g.opt || g.opt===m.id).map(g=>{ const i = getTroca(plan, di, slot, g); return i>=0 && g.itens[i] ? g.itens[i] : null; }).filter(Boolean);
 }
 // "Coxa/sobrecoxa de frango (70g)" → {nome, qtd:70, un:'g'}
 function parseSubItem(t){
@@ -1612,6 +1613,7 @@ function guessCat(n){
 function ingredientsWithSwaps(plan, di, slot, m){
   let ing = (m.ingredientes||[]).slice();
   (plan.subs||[]).forEach(g=>{
+    if (g.opt && g.opt!==m.id) return;
     const i = getTroca(plan, di, slot, g); if (i<0 || !g.itens[i]) return;
     const kw = subKeywords(g);
     ing = ing.filter(x=>!kw.some(w=>normName(x.nome).split(' ').map(sing).join(' ').includes(w)));
@@ -1664,11 +1666,11 @@ function subUI(plan, di, sl, cur){
     const i = getTroca(plan, di, sl, g);
     const sel = h('select',{class:'subsel','aria-label':'Troca: '+g.grupo}, h('option',{value:'-1'}, 'Sem troca (como na dieta)'), g.itens.map((t,k)=>h('option',{value:String(k)}, t)));
     sel.value = String(i); sel.onchange = () => { setTroca(plan, di, sl, g, +sel.value); savePlanNow(); render(); };
-    return h('label',{class:'subrow'+(i>=0?' on':'')}, h('span',{class:'small'}, '↔ '+g.grupo.replace(/^substitut\w*\s*(d[aeo]s?\s*)?/i,'Trocar ')), sel);
+    return h('label',{class:'subrow'+(i>=0?' on':'')}, h('span',{class:'small'}, '↔ '+(g.opt ? 'Trocar '+g.grupo : g.grupo).replace(/^substitut\w*\s*(d[aeo]s?\s*)?/i,'Trocar ')), sel);
   };
   const match = subsFor(plan, sl, cur), sn = normName(sl.dia);
   // outros grupos (que não reconheci nesta opção) ficam guardados num "ver mais", caso a pessoa queira usar
-  const outros = (plan.subs||[]).filter(g=>!match.includes(g)).filter(g=>{ const ms = subMeals(g); return !ms.length || ms.some(w=>sn.includes(w) || w.includes(sn)); });
+  const outros = (plan.subs||[]).filter(g=>!g.opt && !match.includes(g)).filter(g=>{ const ms = subMeals(g); return !ms.length || ms.some(w=>sn.includes(w) || w.includes(sn)); });
   const usados = outros.filter(g=>getTroca(plan, di, sl, g)>=0);
   return [...match.map(row), ...usados.map(row),
     outros.length > usados.length ? h('details',{class:'subsmore'}, h('summary',{class:'small'}, 'Outras substituições ('+(outros.length-usados.length)+')'), outros.filter(g=>!usados.includes(g)).map(row)) : null];
@@ -1719,7 +1721,7 @@ function renderPlan(v){
     });
     v.append(h('button',{class:'btn ghost block',onclick:addDay}, isOptPlan(plan) ? '+ Adicionar refeição (ex.: Ceia)' : '+ Adicionar dia'));
     if ((plan.subs||[]).length) v.append(h('details',{class:'card pick',style:'margin-top:12px'}, h('summary',{}, h('b',{},'Lista de substituições'), h('span',{class:'small muted'}, plan.subs.length+(plan.subs.length===1?' grupo':' grupos'))),
-      plan.subs.map(g=>h('div',{class:'shop'}, h('h4',{}, g.grupo), h('ul',{class:'small',style:'margin:0;padding-left:18px'}, g.itens.map(x=>h('li',{},x)))))));
+      plan.subs.map(g=>h('div',{class:'shop'}, h('h4',{}, (g.onde ? g.onde+' — ' : '')+g.grupo), h('ul',{class:'small',style:'margin:0;padding-left:18px'}, g.itens.map(x=>h('li',{},x)))))));
   }
   async function gen(){
     if (!state.info.hasKey){ openSettings(); return; }
@@ -1778,13 +1780,14 @@ function renderPlan(v){
         'FORMATO "opcoes" (o mais comum): a dieta lista as refeições do dia (Café da manhã, Lanche, Almoço, Jantar, Ceia…) e cada uma tem uma ou mais opções para escolher. Nesse caso, cada item de "dias" é UMA REFEIÇÃO: "dia" = nome da refeição (ex. "Café da manhã"), "horario" = horário sugerido, e "refeicoes" = TODAS as opções dela, uma entrada por opção, com "refeicao" igual ao nome da refeição e "prato" começando por "Opção 1: ", "Opção 2: " etc. '+
         'Inclua TODAS as opções de TODAS as refeições, inclusive as que aparecem depois do plano principal, em páginas de "opções", "variações", "cardápio alternativo" ou similares — nunca só a primeira. '+
         'FORMATO "dias": só use se a dieta for organizada por dia da semana (Segunda, Terça…); aí cada item de "dias" é um dia, e opções dentro de uma refeição viram entradas separadas com "Opção 1: ", "Opção 2: ". '+
-        'Listas de substituição por grupo de alimentos vão em "substituicoes" (deixe [] se não houver). '+
+        'Em "substituicoes" coloque só listas GERAIS de substituição (por grupo de alimentos, que valem para várias refeições). As substituições escritas dentro de cada opção (ex. "Opções de substituição para Goma de tapioca") NÃO vão aqui: elas serão copiadas depois, em outra etapa. Deixe [] se não houver listas gerais. '+
         'Os ingredientes são os alimentos da refeição convertidos para quantidade de compra (ex. "2 fatias de pão integral" → pão integral, 2, fatia). '+
         'Use calorias e macros do PDF se houver; se não houver, estime pela Tabela TACO. NÃO copie aqui o passo a passo das receitas, só liste os nomes em "receitas_no_pdf".';
       const r = await run('askGemini', prompt, [doc]);
       if (!r || !Array.isArray(r.dias) || !r.dias.length) throw new Error('Não consegui entender essa dieta. Confira se o PDF tem texto (não só foto) e tente de novo.');
       const plan = normPlan(r, 'pdf', String(r.nome||file.name.replace(/\.pdf$/i,'')).slice(0,60));
       plan.extras = [];
+      const subFalhou = await fetchOptionSubs(plan, doc, step);
       // receitas completas: copiadas do PDF em lotes pequenos, para caber em cada resposta
       const nomes = (Array.isArray(r.receitas_no_pdf) ? r.receitas_no_pdf : []).map(String).filter(Boolean).filter((x,i,a)=>a.findIndex(y=>normName(y)===normName(x))===i);
       let falhou = 0;
@@ -1806,9 +1809,38 @@ function renderPlan(v){
         } catch(e){ falhou++; }
       }
       state.plan = plan; planTab='cardapio'; render(); savePlanNow();
-      toast('Dieta importada'+(nomes.length ? ' com '+(nomes.length)+' receita'+(nomes.length>1?'s':'') : '')+(falhou ? ' (algumas receitas não vieram; dá para pedir de novo na aba Receitas)' : ''));
+      toast('Dieta importada'+(nomes.length ? ' com '+(nomes.length)+' receita'+(nomes.length>1?'s':'') : '')+(falhou ? ' (algumas receitas não vieram; dá para pedir de novo na aba Receitas)' : '')+(subFalhou ? ' · as substituições de '+subFalhou.join(', ')+' não vieram; importe de novo se precisar' : ''));
     } catch(e){ step('Importar dieta em PDF'); pdfLab.style.opacity=''; pdfIn.disabled=false; btn.disabled=false; showErr('Não consegui importar o PDF: '+errMsg(e)); }
   }
+}
+/* Substituições escritas dentro de cada opção da dieta ("Opções de substituição para X").
+   Pede uma refeição por vez, para a resposta não ficar grande demais e a IA não pular nenhuma. */
+async function fetchOptionSubs(plan, doc, step){
+  if (plan.formato!=='opcoes') return null;
+  const falhou = [], novos = [], cobertas = [];
+  for (let si=0; si<plan.dias.length; si++){
+    const sl = plan.dias[si]; if (!(sl.refeicoes||[]).length) continue;
+    step('Copiando as substituições… ('+(si+1)+' de '+plan.dias.length+': '+sl.dia+')');
+    const lista = sl.refeicoes.map((m,k)=>'Opção '+(k+1)+': '+cleanPrato(m.prato)).join(' | ');
+    try {
+      const rr = await run('askGemini', 'O PDF anexado é uma dieta. Olhe SÓ a refeição "'+sl.dia+'"'+(sl.horario?' ('+sl.horario+')':'')+', que tem estas opções: '+lista+'.\n'+
+        'Para CADA opção, copie FIELMENTE do PDF todas as substituições escritas nela (ex. "Opções de substituição para Goma de tapioca: Rap10 – 0,5 unidade (19,1g) ou Pão de forma – 1 fatia (25,2g)").\n'+
+        'Responda SOMENTE com JSON: {"opcoes":[{"opcao":número da opção (1 = a primeira, na ordem acima),"substituicoes":[{"alimento":"o alimento da opção que pode ser trocado, com a quantidade, ex. Goma de tapioca (30g)","itens":["cada substituto com a quantidade, como no PDF, ex. Pão de forma (1 fatia, 25,2g)"]}]}]}\n'+
+        'Inclua todas as opções e todos os alimentos que têm substituição. Não invente nada. Opção sem substituições: "substituicoes": [].', [doc]);
+      let n = 0;
+      (rr && Array.isArray(rr.opcoes) ? rr.opcoes : []).forEach(o=>{
+        const m = sl.refeicoes[(+o.opcao||0)-1]; if (!m) return;
+        (Array.isArray(o.substituicoes) ? o.substituicoes : []).forEach(x=>{
+          if (!x || !x.alimento || !Array.isArray(x.itens) || !x.itens.length) return;
+          novos.push({grupo:String(x.alimento).slice(0,80), base:String(x.alimento), refeicoes:[sl.dia], itens:x.itens.map(String).filter(Boolean), opt:m.id, onde:sl.dia+' · Opção '+(sl.refeicoes.indexOf(m)+1)}); n++;
+        });
+      });
+      if (n) cobertas.push(normName(sl.dia));
+    } catch(e){ falhou.push(sl.dia); }
+  }
+  // listas antigas da 1ª etapa que repetem refeições já cobertas saem, para não aparecer em dobro
+  plan.subs = (plan.subs||[]).filter(g=>{ const ms = subMeals(g); return !ms.length || !ms.some(w=>cobertas.some(c=>c.includes(w) || w.includes(c))); }).concat(novos);
+  return falhou.length ? falhou : null;
 }
 function confirmReplace(){ return window.confirm('Isso vai substituir o plano atual (e a seleção da lista de compras). Continuar?'); }
 
