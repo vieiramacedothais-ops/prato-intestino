@@ -122,6 +122,12 @@ header.top h1{font-size:26px;line-height:1.05}
 .dopt-n{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .dopt-n.pl{color:var(--accent)}
 .dopt.alt{opacity:.75}
+.subrow{display:flex;flex-direction:column;gap:4px;margin-top:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px}
+.subrow.on{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+.subsel{padding:8px;font-size:14px}
+.subsmore{margin-top:8px}
+.subsmore summary{color:var(--accent);font-weight:600;cursor:pointer}
+.dopt-sw{color:var(--accent)}
 .exlist{display:flex;flex-direction:column;gap:10px}
 .exitem{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .exitem .x{width:30px;height:30px;font-size:16px}
@@ -684,7 +690,7 @@ const WEEKDAYS = ['domingo','segunda','terca','quarta','quinta','sexta','sabado'
 const isOptPlan = p => !!(p && p.formato==='opcoes');
 function todayGroups(plan){
   if (!plan || !plan.dias || !plan.dias.length) return [];
-  if (isOptPlan(plan)) return plan.dias.map(d=>{ const c = chosenFor(plan, todayIdx(), d); const ops = (d.refeicoes||[]).slice(); return {nome:d.dia, horario:d.horario||'', plan:c, num:m=>ops.indexOf(m)+1, opcoes: c ? [c, ...ops.filter(m=>m!==c)] : ops}; });
+  if (isOptPlan(plan)) return plan.dias.map(d=>{ const c = chosenFor(plan, todayIdx(), d); const ops = (d.refeicoes||[]).slice(); return {nome:d.dia, horario:d.horario||'', plan:c, slot:d, num:m=>ops.indexOf(m)+1, opcoes: c ? [c, ...ops.filter(m=>m!==c)] : ops}; });
   const wd = WEEKDAYS[new Date().getDay()];
   const day = plan.dias.find(d=>normName(d.dia).startsWith(wd)) || plan.dias.find(d=>/todos/.test(normName(d.dia))) || (plan.dias.length===1 ? plan.dias[0] : null);
   if (!day) return [];
@@ -692,11 +698,11 @@ function todayGroups(plan){
   return g;
 }
 const todayPlanEntry = id => state.entries.find(e=>e.type==='meal' && e.planRef===id && dayKey(e.at)===dayKey(Date.now()));
-async function togglePlanMeal(m, grupo){
+async function togglePlanMeal(m, grupo, trocas){
   const done = todayPlanEntry(m.id);
   if (done) { await deleteEntry(done); return; }
-  await saveEntry({type:'meal', at:Date.now(), meal:grupo, resumo:cleanPrato(m.prato), planRef:m.id, nota:'', selos:[],
-    items:[{nome:cleanPrato(m.prato), quantidade:m.porcao||'', kcal:+m.kcal||0, p:+m.proteina||0, c:+m.carboidratos||0, g:+m.gorduras||0, f:+m.fibras||0}]});
+  await saveEntry({type:'meal', at:Date.now(), meal:grupo, resumo:cleanPrato(m.prato)+(trocas&&trocas.length ? ' (troca: '+trocas.join('; ')+')' : ''), planRef:m.id, nota:'', selos:[],
+    items:[{nome:cleanPrato(m.prato)+(trocas&&trocas.length ? ' — troca: '+trocas.join('; ') : ''), quantidade:m.porcao||'', kcal:+m.kcal||0, p:+m.proteina||0, c:+m.carboidratos||0, g:+m.gorduras||0, f:+m.fibras||0}]});
 }
 function dietTodayCard(){
   const plan = state.plan; const gs = todayGroups(plan);
@@ -713,9 +719,10 @@ function dietTodayCard(){
         g.opcoes.map(m=>{
           const on = !!todayPlanEntry(m.id);
           const cb = h('input',{type:'checkbox',checked:on||undefined});
-          cb.onchange = async () => { cb.disabled = true; await togglePlanMeal(m, g.nome); };
+          cb.onchange = async () => { cb.disabled = true; await togglePlanMeal(m, g.nome, tr); };
           const tag = g.num ? 'Opção '+g.num(m)+(g.plan===m ? ' · planejada para hoje' : '') : '';
-          return h('label',{class:'dopt'+(on?' on':'')+(g.plan && g.plan!==m ? ' alt' : '')}, cb, h('span',{}, tag ? h('span',{class:'dopt-n'+(g.plan===m?' pl':'')}, tag) : null, h('span',{class:'dopt-t'}, g.num ? cleanPrato(m.prato) : m.prato), h('span',{class:'muted small'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal' : ''].filter(Boolean).join(' · '))));
+          const tr = g.plan===m && g.slot ? trocasTxt(plan, todayIdx(), g.slot, m) : [];
+          return h('label',{class:'dopt'+(on?' on':'')+(g.plan && g.plan!==m ? ' alt' : '')}, cb, h('span',{}, tag ? h('span',{class:'dopt-n'+(g.plan===m?' pl':'')}, tag) : null, h('span',{class:'dopt-t'}, g.num ? cleanPrato(m.prato) : m.prato), tr.length ? h('span',{class:'small dopt-sw'}, '↔ com troca: '+tr.join('; ')) : null, h('span',{class:'muted small'}, [m.porcao, m.kcal ? nf(m.kcal)+' kcal' : ''].filter(Boolean).join(' · '))));
         }));
     }),
     h('div',{style:'display:flex;gap:14px;margin-top:8px'}, isOptPlan(plan) ? h('button',{class:'link',onclick:()=>{ state.tab='plano'; planTab='semana'; render(); }},'Escolher opções da semana') : null, h('button',{class:'link',onclick:()=>{ state.tab='plano'; planTab='cardapio'; render(); }},'Ver dieta completa')));
@@ -1380,7 +1387,7 @@ function normPlan(r, fonte, nome){
     refeicao:String(m.refeicao||''), prato:String(m.prato), porcao:String(m.porcao||''), preparo:String(m.preparo||''),
     kcal:+m.kcal||0, proteina:+m.proteina||0, carboidratos:+m.carboidratos||0, gorduras:+m.gorduras||0, fibras:+m.fibras||0,
     ingredientes: m.ingredientes ? normIng(m.ingredientes) : null, passos: Array.isArray(m.passos) ? m.passos.map(String) : null }))}));
-  const subs = (Array.isArray(r.substituicoes) ? r.substituicoes : []).filter(x=>x&&x.grupo&&Array.isArray(x.itens)).map(x=>({grupo:String(x.grupo), itens:x.itens.map(String)}));
+  const subs = (Array.isArray(r.substituicoes) ? r.substituicoes : []).filter(x=>x&&x.grupo&&Array.isArray(x.itens)).map(x=>({grupo:String(x.grupo), base:String(x.base||''), refeicoes:Array.isArray(x.refeicoes)?x.refeicoes.map(String):[], itens:x.itens.map(String)}));
   return ensureIds({fonte, nome:nome||'', formato: r.formato==='opcoes' ? 'opcoes' : 'dias', geradoEm:Date.now(), dias, subs, sel:[], ok:[], vezes:{}, obs:String(r.observacoes||'')});
 }
 const planMeals = plan => { const out=[]; (plan.dias||[]).forEach((d,di)=>(d.refeicoes||[]).forEach((m,mi)=>out.push({d, m, di, mi, key:m.id||(di+'|'+mi)}))); return out; };
@@ -1394,6 +1401,19 @@ const fmtQty = (q, un) => {
 function shoppingList(plan){
   const useWeek = isOptPlan(plan) && hasWeek(plan), wc = useWeek ? weekCounts(plan) : {};
   const sel = useWeek ? new Set(Object.keys(wc)) : new Set(plan.sel||[]); const map = {}; const semIng = [];
+  const addIng = (list, mult) => list.forEach(i=>{
+    const k = normName(i.nome)+'|'+(i.qtd==null?'':i.un);
+    const it = map[k] || (map[k] = {key:k, nome:i.nome, cat:i.cat, un:i.un, qtd:null, vezes:0});
+    it.vezes += mult; if (i.qtd!=null) it.qtd = (it.qtd||0) + i.qtd*mult;
+  });
+  if (useWeek) {
+    DIAS_SEM.forEach((_,di)=>plan.dias.forEach(sl=>{
+      const m = chosenFor(plan, di, sl); if (!m) return;
+      const ing = ingredientsWithSwaps(plan, di, sl, m);
+      if (!ing.length) { if (!semIng.some(x=>x.m===m)) semIng.push({m, key:m.id}); return; }
+      addIng(ing, 1);
+    }));
+  } else
   planMeals(plan).forEach(x=>{
     if (!sel.has(x.key)) return;
     if (!x.m.ingredientes || !x.m.ingredientes.length){ semIng.push(x); return; }
@@ -1537,6 +1557,69 @@ function addDay(){
   state.plan.dias.push({dia:nome.trim().slice(0,30), refeicoes:[]}); savePlanNow(); render();
 }
 
+/* ---------- substituições (trocas dentro da opção escolhida) ---------- */
+/* plan.trocas = { dia(0..6): { idDaRefeição: { chaveDoGrupo: índiceDoSubstituto } } } */
+const MEAL_WORDS = ['cafe da manha','lanche da manha','almoco','lanche da tarde','lanche','jantar','ceia'];
+const STOP = new Set(['substitutos','substituto','substituicoes','substituicao','opcoes','de','do','da','dos','das','e','ou','para','no','na','nos','nas','o','a','os','as','unidade','unidades','un','g','ml','gramas','grupo','lista','frutas','carboidratos','proteinas','gorduras','fontes','fonte','refeicao','refeicoes','colher','colheres','colhere','xicara','xicaras','fatia','fatias','concha','conchas','porcao','porcoes','cafe','manha','almoco','jantar','ceia','lanche','tarde','ate','com','sem']);
+const subKey = g => normName(g.grupo).slice(0,60);
+const sing = w => w.length>3 && w.endsWith('s') ? w.slice(0,-1) : w;
+// palavras que dizem o que o grupo substitui (ex. "Substitutos dos ovos (2 unidades)" → ovo; "(mamão 150g)" → mamao)
+function subKeywords(g){
+  if (g._kw) return g._kw;
+  const src = [g.base||'', (String(g.grupo).match(/\(([^)]*)\)/)||[])[1]||'', String(g.grupo).replace(/\([^)]*\)/g,'')].join(' ');
+  const kw = normName(src).split(' ').filter(w=>w.length>2 && !STOP.has(w) && !/^\d/.test(w)).map(sing);
+  Object.defineProperty(g,'_kw',{value:[...new Set(kw)],enumerable:false});
+  return g._kw;
+}
+function subMeals(g){ // refeições citadas no nome do grupo (ex. "do café da manhã")
+  const n = normName(g.grupo+' '+(Array.isArray(g.refeicoes)?g.refeicoes.join(' '):''));
+  return MEAL_WORDS.filter(w=>n.includes(w));
+}
+function subsFor(plan, slot, m){
+  const txt = normName([m.prato, m.porcao, ...(m.ingredientes||[]).map(i=>i.nome)].join(' ')).split(' ').map(sing).join(' ');
+  const sn = normName(slot.dia);
+  return (plan.subs||[]).filter(g=>{
+    const ms = subMeals(g); if (ms.length && !ms.some(w=>sn.includes(w) || w.includes(sn))) return false;
+    return subKeywords(g).some(w=>(' '+txt+' ').includes(' '+w+' ') || txt.includes(w));
+  });
+}
+const getTroca = (plan, di, slot, g) => { const v = (((plan.trocas||{})[di]||{})[slot.id]||{})[subKey(g)]; return v==null ? -1 : +v; };
+function setTroca(plan, di, slot, g, idx){
+  plan.trocas = plan.trocas || {}; const d = plan.trocas[di] = plan.trocas[di] || {}; const s = d[slot.id] = d[slot.id] || {};
+  if (idx<0) delete s[subKey(g)]; else s[subKey(g)] = idx;
+}
+function trocasTxt(plan, di, slot, m){
+  return (plan.subs||[]).map(g=>{ const i = getTroca(plan, di, slot, g); return i>=0 && g.itens[i] ? g.itens[i] : null; }).filter(Boolean);
+}
+// "Coxa/sobrecoxa de frango (70g)" → {nome, qtd:70, un:'g'}
+function parseSubItem(t){
+  const m = String(t).match(/\((?:at[eé]\s*)?(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l|un\w*|fatias?|col\w*)?[^)]*\)/i);
+  const nome = String(t).replace(/\([^)]*\)/g,'').split(/,| ou /)[0].trim() || String(t).trim();
+  let un = m && m[2] ? m[2].toLowerCase() : 'unidade'; if (/^un/.test(un)) un = 'unidade'; if (/^fatia/.test(un)) un = 'fatia'; if (/^col/.test(un)) un = 'colher de sopa';
+  return {nome: nome.charAt(0).toUpperCase()+nome.slice(1), qtd: m ? +m[1].replace(',','.') : null, un, cat: guessCat(nome)};
+}
+function guessCat(n){
+  n = normName(n);
+  if (/frango|carne|porco|peixe|atum|salmao|ovo|sardinha|tilapia|patinho|file/.test(n)) return 'Carnes, peixes e ovos';
+  if (/queijo|iogurte|leite|requeijao|ricota|whey/.test(n)) return 'Laticínios';
+  if (/pao|torrada|bisnaguinha/.test(n)) return 'Padaria';
+  if (/arroz|feijao|aveia|granola|cuscuz|macarrao|quinoa|milho|lentilha|grao/.test(n)) return 'Grãos e cereais';
+  if (/fruta|banana|maca|mamao|morango|kiwi|manga|laranja|uva|pera|abacaxi|ameixa|goiaba|melancia|melao|abacate|batata|mandioca|macaxeira|legume|verdura|tomate|alface|cenoura|bergamota|caqui/.test(n)) return 'Hortifrúti';
+  if (/azeite|oleo|castanha|amendoim|pasta|tapioca|goma/.test(n)) return 'Mercearia';
+  return 'Outros';
+}
+// ingredientes da opção já com as trocas do dia aplicadas (para a lista de compras)
+function ingredientsWithSwaps(plan, di, slot, m){
+  let ing = (m.ingredientes||[]).slice();
+  (plan.subs||[]).forEach(g=>{
+    const i = getTroca(plan, di, slot, g); if (i<0 || !g.itens[i]) return;
+    const kw = subKeywords(g);
+    ing = ing.filter(x=>!kw.some(w=>normName(x.nome).split(' ').map(sing).join(' ').includes(w)));
+    ing.push(parseSubItem(g.itens[i]));
+  });
+  return ing;
+}
+
 /* ---------- Minha semana (dieta por opções) ---------- */
 /* plan.escolhas = { 0..6 (segunda..domingo): { idDaRefeição: idDaOpção } } — vale para todas as semanas até mudar */
 const DIAS_SEM = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
@@ -1558,7 +1641,7 @@ function renderWeek(v, plan){
   v.append(h('p',{class:'muted small',style:'margin:0 0 10px'},'Escolha qual opção você vai comer em cada refeição de cada dia. A escolha de hoje aparece na tela Hoje e a lista de compras é montada com a semana. Vale para todas as semanas, até você mudar. ('+filled+' de 7 dias completos)'));
   v.append(h('div',{style:'display:flex;gap:14px;margin:0 0 10px'},
     h('button',{class:'link',onclick:()=>{ if (!window.confirm('Escolher a Opção 1 em todas as refeições de todos os dias que ainda estão vazios?')) return; DIAS_SEM.forEach((_,di)=>plan.dias.forEach(sl=>{ if (!chosenFor(plan,di,sl) && sl.refeicoes && sl.refeicoes[0]) setChoice(plan,di,sl,sl.refeicoes[0].id); })); savePlanNow(); render(); }},'Preencher vazios com a Opção 1'),
-    h('button',{class:'link',onclick:()=>{ if (!window.confirm('Limpar todas as escolhas da semana?')) return; plan.escolhas = {}; savePlanNow(); render(); }},'Limpar semana')));
+    h('button',{class:'link',onclick:()=>{ if (!window.confirm('Limpar todas as escolhas da semana?')) return; plan.escolhas = {}; plan.trocas = {}; savePlanNow(); render(); }},'Limpar semana')));
   DIAS_SEM.forEach((dn, di)=>{
     const kcal = plan.dias.reduce((s,sl)=>{ const c = chosenFor(plan,di,sl); return s+(c ? +c.kcal||0 : 0); },0);
     const open = weekOpen[di]!=null ? weekOpen[di] : di===ti;
@@ -1570,10 +1653,25 @@ function renderWeek(v, plan){
           h('div',{class:'dg-head'}, h('b',{}, sl.dia), sl.horario ? h('span',{class:'muted small'}, sl.horario) : null),
           h('div',{class:'seg'}, (sl.refeicoes||[]).map((m,k)=>h('button',{class:'pill','aria-pressed':String(cur===m),'aria-label':sl.dia+': opção '+(k+1)+', '+cleanPrato(m.prato),
             onclick:()=>{ setChoice(plan,di,sl, cur===m ? null : m.id); savePlanNow(); render(); }}, 'Opção '+(k+1)))),
-          cur ? h('div',{class:'small',style:'margin-top:4px'}, cleanPrato(cur.prato), h('span',{class:'muted'}, [cur.porcao, cur.kcal ? nf(cur.kcal)+' kcal' : ''].filter(Boolean).map(x=>' · '+x).join(''))) : h('div',{class:'small muted',style:'margin-top:4px'},'Nenhuma escolhida'));
+          cur ? h('div',{class:'small',style:'margin-top:4px'}, cleanPrato(cur.prato), h('span',{class:'muted'}, [cur.porcao, cur.kcal ? nf(cur.kcal)+' kcal' : ''].filter(Boolean).map(x=>' · '+x).join(''))) : h('div',{class:'small muted',style:'margin-top:4px'},'Nenhuma escolhida'),
+          cur ? subUI(plan, di, sl, cur) : null);
       }),
-      h('button',{class:'link',style:'margin-top:8px',onclick:()=>{ if (!window.confirm('Usar as escolhas de '+dn+' em todos os dias da semana?')) return; const src = (plan.escolhas||{})[di]||{}; DIAS_SEM.forEach((_,k)=>{ plan.escolhas[k] = Object.assign({}, src); }); savePlanNow(); render(); toast('Semana preenchida igual a '+dn); }},'Repetir '+dn+' na semana toda')));
+      h('button',{class:'link',style:'margin-top:8px',onclick:()=>{ if (!window.confirm('Usar as escolhas de '+dn+' em todos os dias da semana?')) return; const src = (plan.escolhas||{})[di]||{}, srcT = JSON.stringify((plan.trocas||{})[di]||{}); plan.trocas = plan.trocas || {}; DIAS_SEM.forEach((_,k)=>{ plan.escolhas[k] = Object.assign({}, src); plan.trocas[k] = JSON.parse(srcT); }); savePlanNow(); render(); toast('Semana preenchida igual a '+dn); }},'Repetir '+dn+' na semana toda')));
   });
+}
+function subUI(plan, di, sl, cur){
+  const row = g => {
+    const i = getTroca(plan, di, sl, g);
+    const sel = h('select',{class:'subsel','aria-label':'Troca: '+g.grupo}, h('option',{value:'-1'}, 'Sem troca (como na dieta)'), g.itens.map((t,k)=>h('option',{value:String(k)}, t)));
+    sel.value = String(i); sel.onchange = () => { setTroca(plan, di, sl, g, +sel.value); savePlanNow(); render(); };
+    return h('label',{class:'subrow'+(i>=0?' on':'')}, h('span',{class:'small'}, '↔ '+g.grupo.replace(/^substitut\w*\s*(d[aeo]s?\s*)?/i,'Trocar ')), sel);
+  };
+  const match = subsFor(plan, sl, cur), sn = normName(sl.dia);
+  // outros grupos (que não reconheci nesta opção) ficam guardados num "ver mais", caso a pessoa queira usar
+  const outros = (plan.subs||[]).filter(g=>!match.includes(g)).filter(g=>{ const ms = subMeals(g); return !ms.length || ms.some(w=>sn.includes(w) || w.includes(sn)); });
+  const usados = outros.filter(g=>getTroca(plan, di, sl, g)>=0);
+  return [...match.map(row), ...usados.map(row),
+    outros.length > usados.length ? h('details',{class:'subsmore'}, h('summary',{class:'small'}, 'Outras substituições ('+(outros.length-usados.length)+')'), outros.filter(g=>!usados.includes(g)).map(row)) : null];
 }
 const weekOpen = {};
 
@@ -1674,7 +1772,7 @@ function renderPlan(v){
       catch(e){ if (file.size > 14*1024*1024) throw e; doc = {mime:'application/pdf', data:b64}; } // PDF pequeno: manda junto no pedido
       step('Lendo o cardápio… (pode levar 1 a 2 minutos)');
       const prompt = 'O PDF anexado é uma dieta (plano alimentar) feita por uma nutricionista. Transcreva o CARDÁPIO fielmente para o JSON abaixo, em português do Brasil.\n'+
-        'Responda SOMENTE com JSON: {"nome":"título curto da dieta","formato":"opcoes" ou "dias","observacoes":"orientações gerais da nutricionista (água, horários, o que evitar), ou vazio","substituicoes":[{"grupo":"ex. Carboidratos","itens":["1 pão francês = 4 col. de sopa de arroz"]}],"dias":[{"dia":"rótulo","horario":"hh:mm ou vazio","refeicoes":[{"refeicao":"ex. Café da manhã","prato":"o que comer, resumido","porcao":"quantidades como estão no PDF","preparo":"resumo do preparo em até 2 frases, ou vazio","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]'+
+        'Responda SOMENTE com JSON: {"nome":"título curto da dieta","formato":"opcoes" ou "dias","observacoes":"orientações gerais da nutricionista (água, horários, o que evitar), ou vazio","substituicoes":[{"grupo":"título do grupo como no PDF","base":"o alimento da dieta que esse grupo substitui, ex. Ovos (2 unidades)","refeicoes":["refeições onde a troca vale, ex. Café da manhã; vazio se vale em todas"],"itens":["cada substituto com a quantidade, ex. Coxa de frango (70g)"]}],"dias":[{"dia":"rótulo","horario":"hh:mm ou vazio","refeicoes":[{"refeicao":"ex. Café da manhã","prato":"o que comer, resumido","porcao":"quantidades como estão no PDF","preparo":"resumo do preparo em até 2 frases, ou vazio","kcal":n,"proteina":n,"carboidratos":n,"gorduras":n,"fibras":n,'+ING_JSON+'}]}]'+
         ',"receitas_no_pdf":["nome de cada receita que o PDF traz com modo de preparo completo, como está escrito no PDF"]}\n'+
         'Regras: não invente alimentos que não estão no PDF. '+
         'FORMATO "opcoes" (o mais comum): a dieta lista as refeições do dia (Café da manhã, Lanche, Almoço, Jantar, Ceia…) e cada uma tem uma ou mais opções para escolher. Nesse caso, cada item de "dias" é UMA REFEIÇÃO: "dia" = nome da refeição (ex. "Café da manhã"), "horario" = horário sugerido, e "refeicoes" = TODAS as opções dela, uma entrada por opção, com "refeicao" igual ao nome da refeição e "prato" começando por "Opção 1: ", "Opção 2: " etc. '+
