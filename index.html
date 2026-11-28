@@ -16,7 +16,7 @@
   --bg:#F2F5F1; --surface:#FFFFFF; --surface-2:#E7EDE6; --ink:#1C2620; --muted:#5E6B63; --line:#D5DDD4;
   --accent:#2E6A4E; --accent-ink:#FFFFFF; --accent-soft:#D7E7DC;
   --stool:#8A5A2B; --stool-soft:#F1E4D3; --warn:#A9472F; --water:#2F6FA8;
-  --prot:#2F6FA8; --carb:#C98A1B; --fat:#B04A6B; --kcal:#2E6A4E; --work:#6B4FA0;
+  --prot:#2F6FA8; --carb:#C98A1B; --fat:#B04A6B; --kcal:#2E6A4E; --work:#6B4FA0; --band:#9FE1CB; --hair:#1F4A36;
   --display:"Bricolage Grotesque", ui-rounded, system-ui, sans-serif;
   --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif; --r:16px; color-scheme:light;
 }
@@ -24,7 +24,7 @@
   --bg:#121815; --surface:#1A221E; --surface-2:#232D28; --ink:#E6EDE8; --muted:#9AA8A0; --line:#2E3A34;
   --accent:#7CC39C; --accent-ink:#0E1A13; --accent-soft:#1F3A2C;
   --stool:#D9A66E; --stool-soft:#3A2B1C; --warn:#E58A70; --water:#4F8FD0;
-  --prot:#4F8FD0; --carb:#B07A1C; --fat:#CC6A8C; --kcal:#7CC39C; --work:#A98BD6; color-scheme:dark}}
+  --prot:#4F8FD0; --carb:#B07A1C; --fat:#CC6A8C; --kcal:#7CC39C; --work:#A98BD6; --band:#0F3D2C; --hair:#4E9A72; color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;
@@ -155,6 +155,11 @@ header.top h1{font-size:26px;line-height:1.05}
 .thumbs{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .thumbs img{width:60px;height:60px;object-fit:cover;border-radius:10px}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.medrow{display:grid;grid-template-columns:1fr auto;gap:0 10px;padding:8px 0;border-top:1px solid var(--line)}
+.medrow:first-of-type{border-top:0}
+.medrow .small{grid-column:1/-1}
+.medhist{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:9px 0;color:var(--ink);font:inherit}
+.medlembrete{border:1.5px solid var(--accent)}
 .chip{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink);border:0}
 .chip.badge{background:var(--accent-soft)}
 .chip.alert{background:var(--warn);color:#fff}
@@ -165,7 +170,7 @@ header.top h1{font-size:26px;line-height:1.05}
 /* navegação */
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
   padding:6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
-.nav .row{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);align-items:center}
+.nav .row{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr);align-items:center}
 .nav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:6px 0}
 .nav button[aria-current="page"]{color:var(--accent)}
 .nav .plus{width:54px;height:54px;border-radius:999px;background:var(--accent);color:var(--accent-ink);margin:-26px auto 0;box-shadow:0 4px 14px rgba(0,0,0,.18);display:grid;place-items:center;padding:0}
@@ -292,6 +297,7 @@ textarea{resize:none}
 <nav class="nav"><div class="row">
   <button data-tab="hoje" aria-current="page"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9H4z"/></svg>Hoje</button>
   <button data-tab="graficos"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Gráficos</button>
+  <button data-tab="medidas"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="1.5"/><path d="M6.5 8v3M10.5 8v4M14.5 8v3M18 8v4"/></svg>Medidas</button>
   <button class="plus" id="plus" aria-label="Registrar"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
   <button data-tab="plano"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Plano</button>
   <button data-tab="diario"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4"/></svg>Diário</button>
@@ -338,13 +344,14 @@ async function api(action, payload, timeoutMs = 90000) {
   if (!j.ok) throw new Error(j.error || 'Erro no Google.');
   return j.data;
 }
-const QUEUED = new Set(['saveRoutines','saveEntry','deleteEntry','setWater','saveWeight','deleteWeight','startFast','stopFast','saveProfile','saveInsight','savePlan','setReminders']);
+const QUEUED = new Set(['saveMeasure','deleteMeasure','saveRoutines','saveEntry','deleteEntry','setWater','saveWeight','deleteWeight','startFast','stopFast','saveProfile','saveInsight','savePlan','setReminders']);
 const COALESCE = { setWater: a => 'w:' + a[0], saveProfile: () => 'p', saveInsight: () => 'i', savePlan: () => 'pl', setReminders: () => 'r', saveRoutines: () => 'rt' };
 function localResult(fn, args) {
   const a = args[0];
   switch (fn) {
     case 'saveEntry': { a.id = a.id || uid(); const c = JSON.parse(JSON.stringify(a)); delete c.dataStr; delete c.horaStr; return c; }
     case 'saveWeight': a.id = a.id || uid(); return { id: a.id, at: a.at, kg: a.kg };
+    case 'saveMeasure': { a.id = a.id || uid(); const c = JSON.parse(JSON.stringify(a)); delete c.dataStr; return c; }
     case 'startFast': return { start: a.start, goalH: a.goalH };
     case 'stopFast': { const cur = state.fastCurrent || { start: a.end, goalH: goals().jejum }; return { id: uid(), start: cur.start, end: a.end, goalH: cur.goalH }; }
     case 'saveProfile': return JSON.parse(JSON.stringify(a));
@@ -366,7 +373,7 @@ async function run(fn, ...args) {
   if (fn === 'getAll') return api('getAll', {});
   throw new Error('Ação desconhecida');
 }
-const DATA_KEYS = ['routines','workoutCurrent','entries','water','weights','fasts','fastCurrent','profile','plan','insight','reminders','info'];
+const DATA_KEYS = ['measures','routines','workoutCurrent','entries','water','weights','fasts','fastCurrent','profile','plan','insight','reminders','info'];
 let persistT = null;
 function persistSoon() {
   clearTimeout(persistT);
@@ -517,7 +524,7 @@ function bristolSvg(n, w=64, hgt=30){
 }
 
 /* ================= estado ================= */
-const state = { tab:'hoje', loaded:false, routines:[], workoutCurrent:null, entries:[], water:{}, weights:[], fasts:[], fastCurrent:null, profile:null, plan:null, insight:null, reminders:{times:[]}, info:{}, chartDays:7 };
+const state = { tab:'hoje', loaded:false, measures:[], routines:[], workoutCurrent:null, entries:[], water:{}, weights:[], fasts:[], fastCurrent:null, profile:null, plan:null, insight:null, reminders:{times:[]}, info:{}, chartDays:7 };
 const P = () => state.profile || {};
 state.info = state.info || {};
 const goals = () => { const p=P(); return {kcal:p.metaKcal||2000, p:p.metaProt||90, c:p.metaCarb||230, g:p.metaGord||65, f:p.metaFibra||25, agua:p.metaAgua||8, copo:p.copoMl||250, jejum:p.jejumH||16}; };
@@ -536,7 +543,7 @@ function petStats(){
   const treinos = state.entries.filter(e=>e.type==='workout').length;
   const g = goals();
   const waterDays = Object.values(state.water).filter(c=>c>=g.agua).length;
-  const xp = meals.length*10 + stools*5 + treinos*15 + state.weights.length*5 + waterDays*10 + state.fasts.filter(f=>(f.end-f.start)/36e5>=f.goalH).length*10;
+  const xp = meals.length*10 + stools*5 + treinos*15 + state.weights.length*5 + (state.measures||[]).length*10 + waterDays*10 + state.fasts.filter(f=>(f.end-f.start)/36e5>=f.goalH).length*10;
   const level = 1 + Math.floor(xp/120);
   const days = new Set(meals.map(m=>dayKey(m.at)));
   let streak = 0; const d = new Date(); d.setHours(12,0,0,0);
@@ -563,14 +570,14 @@ $('#plus').onclick = openAddMenu;
 $('#gear').onclick = openSettings;
 $('#syncpill').onclick = () => { if (!cfg) openConnect(); else { syncErr=''; if (!navigator.onLine) toast('Sem internet agora. Os registros ficam guardados no celular.'); sync(); } };
 $('#today-label').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
-const TITLES = {hoje:'Prato & Intestino', graficos:'Seu progresso', plano:'Plano da semana', diario:'Diário'};
+const TITLES = {hoje:'Prato & Intestino', graficos:'Seu progresso', medidas:'Medidas', plano:'Plano da semana', diario:'Diário'};
 function render(){
   document.querySelectorAll('.nav [data-tab]').forEach(b=>{ if (b.dataset.tab===state.tab) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   $('#page-title').textContent = TITLES[state.tab];
   const v = $('#view'); v.replaceChildren();
   persistSoon();
   if (!state.loaded){ v.append(h('p',{class:'muted'},'Buscando seus registros no Drive…')); return; }
-  ({hoje:renderToday, graficos:renderCharts, plano:renderPlan, diario:renderDiary})[state.tab](v);
+  ({hoje:renderToday, graficos:renderCharts, medidas:renderMedidas, plano:renderPlan, diario:renderDiary})[state.tab](v);
 }
 
 /* ================= HOJE ================= */
@@ -597,6 +604,7 @@ function renderToday(v){
     h('div',{class:'cups'}, Array.from({length:Math.max(g.agua,cups)},(_,i)=>h('button',{class:'cup','aria-label':'Copo '+(i+1),html:cupSvg(i<cups),onclick:()=>setWater(i<cups?i:i+1)}))),
     h('div',{class:'rowbtns'}, h('button',{class:'mini','aria-label':'Tirar um copo',onclick:()=>setWater(Math.max(0,cups-1))},'−'), h('button',{class:'mini',onclick:()=>setWater(cups+1)},'+ 1 copo ('+g.copo+' ml)'))));
   // jejum
+  const mc = medTodayCard(); if (mc) v.append(mc);
   const dc = dietTodayCard(); if (dc) v.append(dc);
   v.append(fastCard());
   // treino
@@ -1037,6 +1045,7 @@ function openAddMenu(){
     h('button',{onclick:go(()=>openStool())}, h('b',{},'Evacuação'), h('span',{},'Tipo na escala de Bristol')),
     h('button',{onclick:go(()=>openWorkout())}, h('b',{},'Treino'), h('span',{},'Musculação, caminhada, corrida…')),
     h('button',{onclick:go(openWeight)}, h('b',{},'Peso'), h('span',{},'Acompanhe sua evolução')),
+    h('button',{onclick:go(()=>openMedidas())}, h('b',{},'Medidas'), h('span',{},'Busto, cintura, abdômen, coxas e panturrilhas')),
     h('button',{onclick:go(()=>setWater((state.water[dayKey(Date.now())]||0)+1))}, h('b',{},'1 copo de água'), h('span',{},goals().copo+' ml'))));
 }
 
@@ -1227,6 +1236,216 @@ function openWeight(){
     h('label',{class:'f',for:'w-kg'},'Peso (kg)', kg), h('label',{class:'f',for:'w-when'},'Quando', when),
     last ? h('p',{class:'muted small',style:'margin:0'},'Último registro: '+nf(last.kg,1)+' kg em '+dataStr(last.at)) : null),
     [h('button',{class:'btn ghost',onclick:()=>s.close()},'Cancelar'), save]);
+}
+
+/* ================= medidas corporais ================= */
+/* Medidas em cm (busto, cintura, abdômen, coxas e panturrilhas dos dois lados). O peso continua nos registros de peso.
+   Lembrete: a cada 5 semanas aparece um aviso na tela Hoje e na aba Medidas. */
+const MEDIDA_DIAS = 35;
+const MEDIDAS = [
+  {k:'pescoco', t:'Pescoço', dica:'Logo abaixo do "gogó", com a fita um pouco inclinada para baixo na frente. Sem apertar e sem abaixar a cabeça.'},
+  {k:'busto', t:'Busto', dica:'Fita na parte mais cheia do peito, reta nas costas, sem apertar.'},
+  {k:'cintura', t:'Cintura', dica:'Na parte mais fina do tronco, um pouco acima do umbigo. Solte o ar normalmente.'},
+  {k:'abdomen', t:'Abdômen', dica:'Na altura do umbigo, sem encolher a barriga.'},
+  {k:'quadril', t:'Quadril', dica:'Na parte mais larga do bumbum, com os pés juntos e a fita reta.'},
+  {k:'coxaD', t:'Coxa direita', curto:'Coxa dir.', dica:'Na parte mais grossa da coxa, logo abaixo do bumbum, em pé e com o peso nas duas pernas.'},
+  {k:'coxaE', t:'Coxa esquerda', curto:'Coxa esq.', dica:'Mesmo ponto da coxa direita.'},
+  {k:'pantD', t:'Panturrilha direita', curto:'Panturrilha dir.', dica:'Na parte mais grossa da batata da perna, em pé e relaxada.'},
+  {k:'pantE', t:'Panturrilha esquerda', curto:'Panturrilha esq.', dica:'Mesmo ponto da panturrilha direita.'}];
+const MED_GRAF = [{t:'% Gordura',ks:['gordura']},{t:'Massa magra',ks:['magra']},{t:'Peso',ks:['peso']},{t:'Pescoço',ks:['pescoco']},{t:'Quadril',ks:['quadril']},{t:'Busto',ks:['busto']},{t:'Cintura',ks:['cintura']},{t:'Abdômen',ks:['abdomen']},{t:'Coxas',ks:['coxaD','coxaE']},{t:'Panturrilhas',ks:['pantD','pantE']}];
+let medGraf = '% Gordura';
+const medList = () => (state.measures||[]).slice().sort((a,b)=>a.at-b.at);
+const medNome = k => ({peso:'Peso', gordura:'Gordura', magra:'Massa magra'})[k] || MEDIDAS.find(m=>m.k===k).t;
+const medUn = k => ({peso:'kg', gordura:'%', magra:'kg'})[k] || 'cm';
+/* Composição corporal (estimativas com fita):
+   - Marinha dos EUA, versão em cm: % = 495 / D − 450
+       mulher: D = 1,29579 − 0,35004·log10(cintura+quadril−pescoço) + 0,22100·log10(altura)
+       homem:  D = 1,0324 − 0,19077·log10(abdômen−pescoço) + 0,15456·log10(altura)
+   - RFM (massa gorda relativa): mulher 76 − 20·(altura/cintura no umbigo); homem 64 − 20·(altura/cintura)
+   Massa gorda = peso × %; massa magra = peso − massa gorda. Margem de erro de uns 3–4 pontos. */
+function pesoEm(at){
+  const ws = state.weights.filter(w=>+w.kg>0); if (!ws.length) return null;
+  const w = ws.slice().sort((a,b)=>Math.abs(a.at-at)-Math.abs(b.at-at))[0];
+  return Math.abs(w.at-at) <= 21*864e5 ? +w.kg : null;
+}
+function composicao(m){
+  const p = P(), alt = +p.altura, homem = p.sexo==='m';
+  if (!(alt>100)) return null;
+  const r = {at:m.at};
+  if (homem){ if (+m.abdomen>0 && +m.pescoco>0 && m.abdomen>m.pescoco) r.marinha = 495/(1.0324 - 0.19077*Math.log10(m.abdomen-m.pescoco) + 0.15456*Math.log10(alt)) - 450; }
+  else if (+m.cintura>0 && +m.quadril>0 && +m.pescoco>0) r.marinha = 495/(1.29579 - 0.35004*Math.log10(+m.cintura + +m.quadril - m.pescoco) + 0.22100*Math.log10(alt)) - 450;
+  const cin = +m.abdomen || +m.cintura;
+  if (cin>0) r.rfm = (homem?64:76) - 20*(alt/cin);
+  ['marinha','rfm'].forEach(k=>{ if (r[k]!=null && !(r[k]>2 && r[k]<70)) delete r[k]; });
+  r.pct = r.marinha!=null ? r.marinha : r.rfm;
+  if (r.pct==null) return null;
+  const kg = pesoEm(m.at); if (kg){ r.peso = kg; r.gordaKg = kg*r.pct/100; r.magraKg = kg - r.gordaKg; }
+  return r;
+}
+function faixaGordura(pct){
+  const f = P().sexo==='m' ? [[6,'Essencial'],[14,'Atleta'],[18,'Boa forma'],[25,'Média'],[99,'Acima da média']] : [[14,'Essencial'],[21,'Atleta'],[25,'Boa forma'],[32,'Média'],[99,'Acima da média']];
+  const lim = P().sexo==='m' ? ['2–5','6–13','14–17','18–24','25 ou mais'] : ['10–13','14–20','21–24','25–31','32 ou mais'];
+  const i = f.findIndex(([x])=>pct<x); return f[i][1]+' ('+lim[i]+'%)';
+}
+function medSerie(k){
+  if (k==='gordura' || k==='magra') return medList().map(composicao).filter(c=>c && (k==='gordura' || c.magraKg)).map(c=>({t:c.at, v: k==='gordura' ? Math.round(c.pct*10)/10 : Math.round(c.magraKg*10)/10}));
+  if (k==='peso') return state.weights.slice().sort((a,b)=>a.at-b.at).filter(w=>+w.kg>0).map(w=>({t:w.at, v:+w.kg}));
+  return medList().filter(m=>+m[k]>0).map(m=>({t:m.at, v:+m[k]}));
+}
+function medProxima(){ const l = medList(); if (!l.length) return null; return l[l.length-1].at + MEDIDA_DIAS*864e5; }
+const medVencida = () => { const p = medProxima(); return p!=null && Date.now() >= p; };
+const BODY_SHAPES = '<path d="M6.0 50.0 C6.2 51.0 5.8 54.3 7.5 56.0 C9.2 57.7 12.6 58.7 16.0 60.0 C19.4 61.3 24.9 62.5 28.0 64.0 C31.1 65.5 33.7 67.0 34.5 69.0 C35.3 71.0 33.7 73.2 33.0 76.0 C32.3 78.8 30.8 83.0 30.5 86.0 C30.2 89.0 31.7 90.7 31.0 94.0 C30.3 97.3 28.0 101.3 26.5 106.0 C25.0 110.7 22.2 116.7 22.0 122.0 C21.8 127.3 23.3 132.3 25.0 138.0 C26.7 143.7 30.4 150.3 32.0 156.0 C33.6 161.7 34.2 167.0 34.5 172.0 C34.8 177.0 34.0 181.7 33.6 186.0 C33.2 190.3 32.7 194.3 32.2 198.0 C31.7 201.7 30.9 206.3 30.6 208.0 C20 210 5 199 0 199 C-5 199 -20 210 -30.6 208 L-30.6 208.0 C-30.9 206.3 -31.7 201.7 -32.2 198.0 C-32.7 194.3 -33.2 190.3 -33.6 186.0 C-34.0 181.7 -34.8 177.0 -34.5 172.0 C-34.2 167.0 -33.6 161.7 -32.0 156.0 C-30.4 150.3 -26.7 143.7 -25.0 138.0 C-23.3 132.3 -21.8 127.3 -22.0 122.0 C-22.2 116.7 -25.0 110.7 -26.5 106.0 C-28.0 101.3 -30.3 97.3 -31.0 94.0 C-31.7 90.7 -30.2 89.0 -30.5 86.0 C-30.8 83.0 -32.3 78.8 -33.0 76.0 C-33.7 73.2 -35.3 71.0 -34.5 69.0 C-33.7 67.0 -31.1 65.5 -28.0 64.0 C-24.9 62.5 -19.4 61.3 -16.0 60.0 C-12.6 58.7 -9.2 57.7 -7.5 56.0 C-5.8 54.3 -6.2 51.0 -6.0 50.0 Z"/><path d="M2.0 166.0 C-3.3 169.0 0.3 176.2 0.2 183.8 C0.1 191.4 1.0 201.4 1.5 211.5 C2.0 221.6 3.0 235.3 3.4 244.3 C3.8 253.3 4.1 257.1 3.8 265.5 C3.5 274.0 1.7 285.7 1.6 294.7 C1.5 303.7 2.7 311.4 3.4 319.7 C4.1 328.1 5.5 338.8 6.0 344.9 C6.5 350.9 4.8 354.1 6.4 356.0 C8.0 357.9 14.0 357.8 15.6 356.0 C17.2 354.2 15.2 351.1 16.0 345.1 C16.8 339.2 18.9 328.6 20.2 320.3 C21.5 312.0 23.2 304.3 23.6 295.3 C24.0 286.3 22.1 274.7 22.6 266.5 C23.1 258.2 25.1 254.7 26.6 245.7 C28.1 236.7 30.3 222.7 31.5 212.5 C32.7 202.2 33.7 191.9 33.8 184.2 C33.9 176.4 37.3 169.0 32.0 166.0 C26.7 163.0 7.3 163.0 2.0 166.0 Z"/><path d="M-32.0 166.0 C-37.3 169.0 -33.9 176.4 -33.8 184.2 C-33.7 191.9 -32.7 202.2 -31.5 212.5 C-30.3 222.7 -28.1 236.7 -26.6 245.7 C-25.1 254.7 -23.1 258.2 -22.6 266.5 C-22.1 274.7 -24.0 286.3 -23.6 295.3 C-23.2 304.3 -21.5 312.0 -20.2 320.3 C-18.9 328.6 -16.8 339.2 -16.0 345.1 C-15.2 351.1 -17.2 354.2 -15.6 356.0 C-14.0 357.8 -8.0 357.9 -6.4 356.0 C-4.8 354.1 -6.5 350.9 -6.0 344.9 C-5.5 338.8 -4.1 328.1 -3.4 319.7 C-2.7 311.4 -1.5 303.7 -1.6 294.7 C-1.7 285.7 -3.5 274.0 -3.8 265.5 C-4.1 257.1 -3.8 253.3 -3.4 244.3 C-3.0 235.3 -2.0 221.6 -1.5 211.5 C-1.0 201.4 -0.1 191.4 -0.2 183.8 C-0.3 176.2 3.3 169.0 -2.0 166.0 C-7.3 163.0 -26.7 163.0 -32.0 166.0 Z"/><path d="M24.5 71.5 C23.1 76.1 28.6 87.3 30.7 96.2 C32.8 105.0 35.4 115.7 37.1 124.7 C38.7 133.8 39.3 140.9 40.6 150.5 C42.0 160.1 44.4 175.2 45.1 182.4 C45.9 189.5 44.8 189.5 45.2 193.3 C45.6 197.1 46.2 203.2 47.4 205.1 C48.6 207.0 51.5 207.0 52.6 204.9 C53.7 202.8 53.9 196.6 53.8 192.7 C53.7 188.8 52.6 188.8 51.9 181.6 C51.1 174.4 50.2 159.2 49.4 149.5 C48.6 139.8 48.0 132.6 46.9 123.3 C45.9 114.0 44.5 103.0 43.3 93.8 C42.0 84.7 42.6 72.2 39.5 68.5 C36.3 64.8 26.0 66.9 24.5 71.5 Z"/><path d="M-39.5 68.5 C-42.6 72.2 -42.0 84.7 -43.3 93.8 C-44.5 103.0 -45.9 114.0 -46.9 123.3 C-48.0 132.6 -48.6 139.8 -49.4 149.5 C-50.2 159.2 -51.1 174.4 -51.9 181.6 C-52.6 188.8 -53.7 188.8 -53.8 192.7 C-53.9 196.6 -53.7 202.8 -52.6 204.9 C-51.5 207.0 -48.6 207.0 -47.4 205.1 C-46.2 203.2 -45.6 197.1 -45.2 193.3 C-44.8 189.5 -45.9 189.5 -45.1 182.4 C-44.4 175.2 -42.0 160.1 -40.6 150.5 C-39.3 140.9 -38.7 133.8 -37.1 124.7 C-35.4 115.7 -32.8 105.0 -30.7 96.2 C-28.6 87.3 -23.1 76.1 -24.5 71.5 C-26.0 66.9 -36.3 64.8 -39.5 68.5 Z"/><path d="M-6 36 L6 36 L7 58 L-7 58 Z"/><ellipse cx="14" cy="361" rx="7" ry="3.8" transform="rotate(12 14 361)"/><ellipse cx="-14" cy="361" rx="7" ry="3.8" transform="rotate(-12 -14 361)"/><ellipse cx="0" cy="25" rx="16" ry="20.5"/>';
+const BODY_HAIR = '<g fill="X" transform="translate(0,-6) scale(1.1)"><circle cx="0" cy="5" r="7.5"/><path d="M-14.5 27 C-15 13 -7 9.5 0 9.5 C7 9.5 15 13 14.5 27 C11 19 6 16.5 0 17 C-6 16.5 -11 19 -14.5 27 Z"/></g>';
+const BODY_POS = {"busto": [0, 93, 31, "R"], "cintura": [0, 121, 22.2, "L"], "abdomen": [0, 139, 25.5, "R"], "coxaD": [-16.2, 222, 14.4, "L"], "coxaE": [16.2, 222, 14.4, "R"], "pantD": [-12.6, 295, 11.2, "L"], "pantE": [12.6, 295, 11.2, "R"], "pescoco": [0, 50, 7.4, "L"], "quadril": [0, 170, 34.8, "L"]};
+function bodySvg(vals){
+  let s = '<svg viewBox="-175 -14 350 384" role="img" aria-label="Desenho do corpo com suas últimas medidas" style="width:100%;max-width:420px;display:block;margin:0 auto">'+
+    '<g fill="var(--accent)" stroke="none">'+BODY_SHAPES+'</g>'+BODY_HAIR.replace(/X/g,'var(--hair)');
+  MEDIDAS.forEach(m=>{
+    const [cx,cy,rx,side] = BODY_POS[m.k], R = side==='R';
+    const x0 = R ? cx+rx : cx-rx, x1 = R ? 72 : -72, w = 88, bx = R ? x1 : x1-w, val = vals[m.k];
+    s += '<ellipse cx="'+cx+'" cy="'+cy+'" rx="'+rx+'" ry="3.6" fill="none" stroke="var(--band)" stroke-width="2"/>'+
+      '<path d="M'+x0+' '+cy+' L'+x1+' '+cy+'" stroke="var(--band)" stroke-width="1" stroke-dasharray="1.5 3" stroke-linecap="round"/>'+
+      '<rect x="'+bx+'" y="'+(cy-17)+'" width="'+w+'" height="34" rx="10" fill="var(--accent-soft)"/>'+
+      '<text x="'+(bx+9)+'" y="'+(cy-3)+'" font-size="10" fill="var(--muted)" font-family="var(--body)">'+(m.curto||m.t)+'</text>'+
+      '<text x="'+(bx+9)+'" y="'+(cy+12)+'" font-size="14" font-weight="700" fill="'+(val?'var(--ink)':'var(--muted)')+'" font-family="var(--body)">'+(val ? nf(val,1) : '—')+' <tspan font-size="10" font-weight="500">cm</tspan></text>';
+  });
+  return svgEl(s+'</svg>');
+}
+function medLineChart(series, unit, label){
+  const all = series.flatMap(s=>s.pts);
+  const W=340, H=180, L=38, Rr=10, T=12, B=24, iw=W-L-Rr, ih=H-T-B;
+  const vals = all.map(p=>p.v); let lo=Math.min(...vals), hi=Math.max(...vals); if (hi-lo<2){ lo-=1; hi+=1; } const padv=(hi-lo)*0.15; lo-=padv; hi+=padv;
+  const t0 = Math.min(...all.map(p=>p.t)), t1 = Math.max(...all.map(p=>p.t));
+  const x = t => L + (t1===t0 ? iw/2 : (t-t0)/(t1-t0)*iw), y = v => T+ih-(v-lo)/(hi-lo)*ih;
+  let g=''; const hits=[];
+  for (let k=0;k<=3;k++){ const v=lo+(hi-lo)*k/3, yy=y(v); g+='<line class="grid" x1="'+L+'" x2="'+(W-Rr)+'" y1="'+yy+'" y2="'+yy+'"/><text class="axis" x="'+(L-6)+'" y="'+(yy+3)+'" text-anchor="end">'+nf(v,1)+'</text>'; }
+  series.forEach(s=>{
+    const dash = s.dash ? ' stroke-dasharray="5 4"' : '';
+    g += '<polyline points="'+s.pts.map(p=>x(p.t)+','+y(p.v)).join(' ')+'" fill="none" stroke="'+s.cor+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"'+dash+'/>';
+    s.pts.forEach(p=>{ g+='<circle cx="'+x(p.t)+'" cy="'+y(p.v)+'" r="4.5" fill="'+s.cor+'" stroke="var(--surface)" stroke-width="2"/>'; });
+  });
+  series.forEach(s=>s.pts.forEach(p=>{ hits.push({s,p}); g+='<circle data-i="'+(hits.length-1)+'" cx="'+x(p.t)+'" cy="'+y(p.v)+'" r="14" fill="transparent" style="cursor:pointer"/>'; }));
+  g+='<text class="axis" x="'+x(t0)+'" y="'+(H-8)+'" text-anchor="start">'+dataStr(t0).slice(0,5)+'</text>';
+  if (t1!==t0) g+='<text class="axis" x="'+x(t1)+'" y="'+(H-8)+'" text-anchor="end">'+dataStr(t1).slice(0,5)+'</text>';
+  const svg = svgEl('<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+label+'">'+g+'</svg>');
+  const cap = h('div',{class:'cap'}, 'Toque num ponto para ver o valor.');
+  svg.addEventListener('click', ev => { const i = ev.target.getAttribute && ev.target.getAttribute('data-i'); if (i==null) return; const {s,p}=hits[+i]; cap.textContent = s.nome+' em '+dataStr(p.t)+': '+nf(p.v,1)+' '+unit; });
+  return {svg, cap};
+}
+const medDiff = d => (d>0?'+':d<0?'−':'')+nf(Math.abs(d),1);
+function renderMedidas(v){
+  const l = medList(), last = l[l.length-1];
+  // últimos valores de cada medida (mesmo que a última medição não tenha todas)
+  const atual = {}; MEDIDAS.forEach(m=>{ const s=medSerie(m.k); if (s.length) atual[m.k]=s[s.length-1].v; });
+  const pesoS = medSerie('peso');
+  // desenho
+  v.append(h('div',{class:'card'},
+    h('div',{class:'card-head'}, h('h3',{},'Suas medidas'), h('span',{class:'muted small'}, last ? 'Última: '+dataStr(last.at) : 'Nenhuma ainda')),
+    pesoS.length ? h('p',{class:'small',style:'margin:0 0 4px;text-align:center'}, 'Peso: ', h('b',{}, nf(pesoS[pesoS.length-1].v,1)+' kg'), h('span',{class:'muted'},' · '+dataStr(pesoS[pesoS.length-1].t))) : null,
+    bodySvg(atual),
+    h('button',{class:'btn primary block',style:'margin-top:10px',onclick:()=>openMedidas()}, 'Registrar medidas')));
+  // lembrete
+  const prox = medProxima();
+  if (prox==null) v.append(h('div',{class:'card'}, h('h3',{},'Lembrete'), h('p',{class:'muted small',style:'margin:4px 0 0'}, 'Meça a cada 5 semanas, sempre no mesmo horário (de manhã, antes de comer, é o ideal) e com a mesma fita. Depois da primeira medição, o app avisa quando for a hora da próxima.')));
+  else { const dias = Math.ceil((prox-Date.now())/864e5);
+    v.append(h('div',{class:'card'+(dias<=0?' medlembrete':'')}, h('div',{class:'card-head'}, h('h3',{},'Lembrete'), h('span',{class:'muted small'},'a cada 5 semanas')),
+      h('p',{class:'small',style:'margin:0'}, dias<=0 ? 'Já passaram 5 semanas desde a última medição. Hora de medir de novo!' : 'Próxima medição: '+dataStr(prox)+' ('+(dias===1?'amanhã':'daqui a '+dias+' dias')+').'),
+      dias<=0 ? h('button',{class:'btn primary block',style:'margin-top:10px',onclick:()=>openMedidas()},'Medir agora') : null)); }
+  if (!l.length && !pesoS.length) return;
+  // composição corporal
+  v.append(compCard());
+  // evolução: primeira x atual x anterior
+  const rows = [['peso'], ...MEDIDAS.map(m=>[m.k])].map(([k])=>{ const s=medSerie(k); if (!s.length) return null; const a=s[s.length-1], f=s[0], p=s[s.length-2];
+    return h('div',{class:'medrow'}, h('span',{}, medNome(k)), h('b',{}, nf(a.v,1)+' '+medUn(k)),
+      h('span',{class:'small muted'}, s.length>1 ? medDiff(a.v-f.v)+' desde '+dataStr(f.t).slice(0,5)+(s.length>2 ? ' · '+medDiff(a.v-p.v)+' na última' : '') : 'primeira medição')); }).filter(Boolean);
+  v.append(h('div',{class:'card'}, h('h3',{style:'margin-bottom:6px'},'Evolução'), rows));
+  // gráfico
+  const opt = MED_GRAF.find(o=>o.t===medGraf) || MED_GRAF[0];
+  const cores = ['var(--accent)','var(--work)'];
+  const series = opt.ks.map((k,i)=>({nome:medNome(k), cor:cores[i], dash:i===1, pts:medSerie(k)})).filter(s=>s.pts.length);
+  const box = h('div',{class:'card chart'}, h('h3',{style:'margin-bottom:8px'},'Gráfico'),
+    h('div',{class:'seg',style:'margin-bottom:10px'}, MED_GRAF.map(o=>h('button',{class:'pill','aria-pressed':String(o.t===opt.t),onclick:()=>{ medGraf=o.t; render(); }}, o.t))));
+  if (series.length && series.some(s=>s.pts.length>=2)){
+    if (series.length>1) box.append(legendEl(series.map((s,i)=>[s.nome, i?'--work':'--accent'])));
+    const c = medLineChart(series, medUn(opt.ks[0]), opt.t+' ao longo do tempo'); box.append(c.svg, c.cap);
+  } else box.append(h('p',{class:'muted small',style:'margin:0'}, series.length ? 'Registre mais uma vez para ver a linha do gráfico.' : 'Ainda não há registros de '+opt.t.toLowerCase()+'.'));
+  v.append(box);
+  // histórico
+  if (l.length) v.append(h('div',{class:'card'}, h('h3',{style:'margin-bottom:6px'},'Histórico'),
+    l.slice().reverse().map(m=>h('button',{class:'medhist',onclick:()=>openMedidas(m)},
+      h('b',{}, dataStr(m.at)),
+      h('span',{class:'small muted'}, MEDIDAS.filter(x=>+m[x.k]>0).map(x=>(x.curto||x.t).replace('Panturrilha','Pant.')+' '+nf(m[x.k],1)).join(' · ') || 'Sem valores')))));
+}
+function compCard(){
+  const card = h('div',{class:'card'}, h('div',{class:'card-head'}, h('h3',{},'Composição corporal'), h('span',{class:'muted small'},'estimativa com fita')));
+  if (!(+P().altura>100)){ card.append(h('p',{class:'small',style:'margin:0 0 8px'},'Para calcular, preciso da sua altura no perfil.'), h('button',{class:'btn ghost block',onclick:()=>openOnboarding(true)},'Completar perfil')); return card; }
+  const cs = medList().map(composicao).filter(Boolean);
+  if (!cs.length){ card.append(h('p',{class:'small muted',style:'margin:0'}, 'Registre '+(P().sexo==='m'?'pescoço e abdômen':'pescoço, cintura e quadril')+' para ver seu percentual de gordura, massa gorda e massa magra.')); return card; }
+  const c = cs[cs.length-1], f = cs[0];
+  const stat = (lbl, val, sub) => h('div',{class:'stat'}, h('b',{},val), h('span',{},lbl), sub ? h('span',{style:'display:block;font-size:11px;margin-top:2px'},sub) : null);
+  const dif = (a,b,u) => cs.length>1 && a!=null && b!=null ? medDiff(a-b)+u+' desde '+dataStr(f.at).slice(0,5) : null;
+  card.append(h('div',{class:'statrow',style:'margin:0'},
+    stat('gordura', nf(c.pct,1)+'%', dif(c.pct,f.pct,' pts')),
+    c.gordaKg ? stat('massa gorda', nf(c.gordaKg,1)+' kg', dif(c.gordaKg,f.gordaKg,' kg')) : null,
+    c.magraKg ? stat('massa magra', nf(c.magraKg,1)+' kg', dif(c.magraKg,f.magraKg,' kg')) : null));
+  card.append(h('p',{class:'small',style:'margin:10px 0 0'}, 'Faixa: ', h('b',{}, faixaGordura(c.pct))));
+  if (c.marinha!=null && c.rfm!=null) card.append(h('p',{class:'small muted',style:'margin:4px 0 0'}, 'Método da Marinha: '+nf(c.marinha,1)+'% · RFM: '+nf(c.rfm,1)+'%'+(Math.abs(c.marinha-c.rfm)<=4?' (os dois batem, bom sinal)':' (diferença grande: confira as medidas)')));
+  else if (c.marinha==null) card.append(h('p',{class:'small muted',style:'margin:4px 0 0'}, 'Calculado só pela RFM (altura e cintura). Meça também '+(P().sexo==='m'?'o pescoço':'pescoço e quadril')+' para usar o método da Marinha, mais completo.'));
+  if (!c.gordaKg) card.append(h('p',{class:'small muted',style:'margin:4px 0 0'}, 'Registre o peso junto com as medidas para ver massa gorda e massa magra.'));
+  card.append(h('p',{class:'small muted',style:'margin:8px 0 0'}, 'A massa magra inclui músculos, ossos, água e órgãos. Se ela sobe enquanto a gordura cai, você está ganhando músculo. As contas com fita podem errar uns 3 a 4 pontos: acompanhe a tendência, não o número de um dia.'));
+  return card;
+}
+function openMedidas(existing){
+  const ed = !!existing;
+  const prev = medList().filter(m=>!existing || m.id!==existing.id).pop();
+  const when = h('input',{type:'date',id:'med-when',value:dayKey(existing ? existing.at : Date.now())});
+  const lastW = state.weights.slice().sort((a,b)=>b.at-a.at)[0];
+  const peso = ed ? null : h('input',{type:'text',inputmode:'decimal',autocomplete:'off',id:'med-peso',placeholder:lastW?nf(lastW.kg,1):'Ex.: 65,4'});
+  let dicas = !ed && !medList().length;
+  const inputs = {}, dicaEls = [];
+  const fields = MEDIDAS.map(m=>{
+    const i = h('input',{type:'text',inputmode:'decimal',autocomplete:'off',id:'med-'+m.k,placeholder:prev&&prev[m.k]?nf(prev[m.k],1):'cm'});
+    if (existing && existing[m.k]) i.value = String(existing[m.k]).replace('.',',');
+    inputs[m.k] = i;
+    const d = h('span',{class:'small muted',style:'font-weight:400'}, m.dica); dicaEls.push(d);
+    return h('label',{class:'f',for:'med-'+m.k}, m.t+' (cm)', d, i);
+  });
+  const showDicas = () => { dicaEls.forEach(d=>d.hidden=!dicas); dicaBtn.textContent = dicas ? 'Esconder dicas' : 'Como medir?'; };
+  const dicaBtn = h('button',{class:'link',type:'button',onclick:()=>{ dicas=!dicas; showDicas(); }});
+  const nota = h('input',{type:'text',id:'med-nota',maxlength:'120',placeholder:'Ex.: medi de manhã, em jejum'}); if (existing && existing.nota) nota.value = existing.nota;
+  const save = h('button',{class:'btn primary',onclick:async()=>{
+    const rec = {id: existing ? existing.id : null}; let n = 0, bad = '';
+    MEDIDAS.forEach(m=>{ const raw = inputs[m.k].value.replace(',','.'); if (raw==='') { rec[m.k] = null; return; } const val = +raw; if (!(val>=10 && val<=250)) bad = m.t; else { rec[m.k] = Math.round(val*10)/10; n++; } });
+    if (bad){ toast('Confira o valor de '+bad.toLowerCase()+' (em cm)'); return; }
+    const pv = peso && peso.value!=='' ? +peso.value.replace(',','.') : null;
+    if (pv!=null && !(pv>20 && pv<400)){ toast('Digite o peso em kg'); return; }
+    if (!n && pv==null){ toast('Preencha pelo menos uma medida'); return; }
+    const [yy,mm,dd] = when.value.split('-').map(Number); const at = when.value ? (existing && dayKey(existing.at)===when.value ? existing.at : new Date(yy,mm-1,dd,new Date().getHours(),new Date().getMinutes()).getTime()) : Date.now();
+    rec.at = at; rec.dataStr = dataStr(at); rec.nota = nota.value.trim();
+    save.disabled = true;
+    try {
+      if (pv!=null){ const w = await run('saveWeight', {kg:pv, at, dataStr:dataStr(at)}); state.weights.push(w); if (state.profile) state.profile.peso = pv; }
+      if (n){ const r = await run('saveMeasure', rec); state.measures = (state.measures||[]).filter(x=>x.id!==r.id).concat(r); }
+      s.close(); render(); toast(ed ? 'Medidas atualizadas' : 'Medidas salvas');
+    } catch(e){ toast(errMsg(e)); save.disabled=false; }
+  }}, ed ? 'Salvar' : 'Salvar medidas');
+  let confirming = false;
+  const del = ed ? h('button',{class:'btn danger',onclick:async()=>{ if (!confirming){ confirming=true; del.textContent='Toque de novo para apagar'; return; }
+    await run('deleteMeasure', {id:existing.id}); state.measures = (state.measures||[]).filter(x=>x.id!==existing.id); s.close(); render(); toast('Medição apagada'); }},'Apagar') : null;
+  const body = h('div',{style:'display:flex;flex-direction:column;gap:14px'},
+    h('label',{class:'f',for:'med-when'},'Data', when),
+    peso ? h('label',{class:'f',for:'med-peso'},'Peso (kg, opcional)', peso) : null,
+    h('div',{style:'display:flex;justify-content:space-between;align-items:center'}, h('span',{class:'small muted'}, 'Deixe em branco o que não mediu.'), dicaBtn),
+    fields, h('label',{class:'f',for:'med-nota'},'Observação (opcional)', nota));
+  const s = openSheet(ed ? 'Editar medidas' : 'Registrar medidas', body, [del || h('button',{class:'btn ghost',onclick:()=>s.close()},'Cancelar'), save]);
+  showDicas();
+}
+function medTodayCard(){
+  if (!medVencida()) return null;
+  const l = medList(), sem = Math.floor((Date.now()-l[l.length-1].at)/(7*864e5));
+  return h('div',{class:'card medlembrete'}, h('div',{class:'card-head'}, h('h3',{},'Hora das medidas'), h('span',{class:'muted small'}, sem+' semanas')),
+    h('p',{class:'small',style:'margin:0 0 10px'}, 'Sua última medição foi em '+dataStr(l[l.length-1].at)+'. Pegue a fita métrica e registre para acompanhar sua evolução.'),
+    h('div',{style:'display:flex;gap:8px'}, h('button',{class:'btn primary',style:'flex:1',onclick:()=>openMedidas()},'Medir agora'), h('button',{class:'btn ghost',style:'flex:1',onclick:()=>{ state.tab='medidas'; render(); window.scrollTo(0,0); }},'Ver medidas')));
 }
 
 /* ================= detalhe ================= */
